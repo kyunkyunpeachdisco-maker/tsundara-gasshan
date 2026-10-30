@@ -1359,6 +1359,7 @@ function renderBoard() {
 function startGame(mode) {
   synth.unlock();
   preload3D();
+  setTimeout(warmEarth, 200);  // 「第1局」の幕のあいだに地球破壊の準備を済ませる
   prepareRecs();
   G.mode = mode;
   G.total = +$('optCount').value;
@@ -2238,10 +2239,11 @@ function ring(x, y, dur, color) {
 }
 // ---------- ランク5 専用の 3D（Three.js はゲーム開始時に裏で読み込む） ----------
 let THREE = null, threePromise = null, earthTexCache = null, earthPhoto = null;
+let earthPhotoReady = Promise.resolve();
 function loadEarthPhoto() {
   if (earthPhoto || !location.protocol.startsWith('http')) return;
   const img = new Image();
-  img.onload = () => { earthPhoto = img; };
+  earthPhotoReady = new Promise(r => { img.onload = () => { earthPhoto = img; r(); }; img.onerror = () => r(); });
   img.src = 'earth.jpg';  // NASA Visible Earth "Blue Marble"
 }
 function preload3D() {
@@ -2353,8 +2355,17 @@ function glowTexture(stops) {
   return new THREE.CanvasTexture(c);
 }
 // 球を「かけら」に分けた形で作る。くっついている間は普通の地球に見える
+let earthChunkCache = null;
 function buildEarthChunks(earthMat, lavaMat) {
   const T = THREE;
+  if (earthChunkCache) {
+    const chunks = earthChunkCache.geos.map((geo, gi) => {
+      const mesh = new T.Mesh(geo, [earthMat, lavaMat]);
+      mesh.userData = {dir: earthChunkCache.dirs[gi].clone(), axis: new T.Vector3(rr(-1, 1), rr(-1, 1), rr(-1, 1)).normalize(), speed: rr(1.1, 2.8), spin: rr(1, 4)};
+      return mesh;
+    });
+    return {chunks, crackPos: earthChunkCache.crackPos};
+  }
   const base = new T.IcosahedronGeometry(1, 4);
   const pos = base.attributes.position.array, triCount = pos.length / 9;
   const seeds = [];
@@ -2412,18 +2423,57 @@ function buildEarthChunks(earthMat, lavaMat) {
   const crackPos = [];
   for (const e of edgeOwners.values()) if (e.g.size > 1) crackPos.push(...e.a.map(x => x * 1.004), ...e.b.map(x => x * 1.004));
   base.dispose();
+  earthChunkCache = {geos: chunks.map(c => c.geometry), dirs: seeds, crackPos};
   return {chunks, crackPos};
 }
-async function earth3D() {
+// 3D の描画部品と、毎回同じ材料（地球の破片の形・模様・光）は一度だけ作って使い回す。
+// 初めて使うときの準備（シェーダーの組み立て・模様の転送）で画面が止まらないよう、対局の始めに warmEarth() で済ませておく
+let earthRenderer = null, earthAssets = null, earthWarm = null;
+function getEarthRenderer() {
+  if (!earthRenderer) {
+    earthRenderer = new THREE.WebGLRenderer({antialias: true});
+    earthRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const cv = earthRenderer.domElement;
+    cv.className = 'earth3d';
+    Object.assign(cv.style, {position: 'fixed', left: 0, top: 0, zIndex: 57, pointerEvents: 'none'});
+  }
+  return earthRenderer;
+}
+function getEarthAssets() {
+  const T = THREE, photo = !!earthPhoto;
+  if (earthAssets && earthAssets.photo === photo) return earthAssets;
+  const tex = earthTextures();
+  const landTex = photo ? new T.Texture(earthPhoto) : new T.CanvasTexture(tex.land);
+  landTex.needsUpdate = true; landTex.colorSpace = T.SRGBColorSpace; landTex.wrapS = T.RepeatWrapping;
+  earthAssets = {
+    photo, landTex,
+    cloudTex: new T.CanvasTexture(tex.cloud),
+    hotTex: glowTexture([[0, 'rgba(255,255,255,1)'], [0.25, 'rgba(255,220,120,.9)'], [0.6, 'rgba(255,90,20,.4)'], [1, 'rgba(255,60,0,0)']]),
+    coreTex: glowTexture([[0, 'rgba(255,255,240,1)'], [0.3, 'rgba(255,200,80,.95)'], [0.7, 'rgba(255,80,10,.35)'], [1, 'rgba(255,40,0,0)']]),
+    chunkGeos: earthAssets ? earthAssets.chunkGeos : null,
+  };
+  return earthAssets;
+}
+// 対局の始めに一度だけ、地球破壊の材料をすべて裏で描いておく
+function warmEarth() {
+  if (earthWarm) return earthWarm;
+  earthWarm = preload3D().then(async m => {
+    if (!m) return;
+    await Promise.race([earthPhotoReady, new Promise(r => setTimeout(r, 4000))]);
+    try { await earth3D(true); } catch (e) { console.warn('3Dの準備に失敗', e); }
+  });
+  return earthWarm;
+}
+async function earth3D(warm = false) {
   const T = THREE;
   const W = innerWidth, H = innerHeight;
-  const renderer = new T.WebGLRenderer({antialias: true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const renderer = getEarthRenderer();
   renderer.setSize(W, H);
   const cv = renderer.domElement;
-  cv.className = 'earth3d';
-  Object.assign(cv.style, {position: 'fixed', left: 0, top: 0, zIndex: 57, pointerEvents: 'none'});
-  document.body.appendChild(cv);
+  cv.style.opacity = '';
+  cv.getAnimations().forEach(a => a.cancel());
+  if (!warm) document.body.appendChild(cv);
+  const A = getEarthAssets();
   const scene = new T.Scene();
   const camera = new T.PerspectiveCamera(45, W / H, 0.01, 1000);
   const trash = [];
@@ -2438,41 +2488,26 @@ async function earth3D() {
   });
   const easeIn = t => t * t * t, easeOut = t => 1 - Math.pow(1 - t, 3);
   try {
-    // ---- 1. 盤からカメラが一気に空へ引いていく ----
+    // ---- 材料をすべて先に作る ----
     const sky = new T.Color('#8fd0ff'), black = new T.Color('#000');
     scene.background = sky.clone();
     const hemi = new T.HemisphereLight(0xffffff, 0x445566, 1.6); scene.add(hemi);
     const sun = new T.DirectionalLight(0xffffff, 2.2); sun.position.set(4, 10, 6); scene.add(sun);
+    // 盤（局面ごとに違うので毎回作る）
     const boardTex = keep(new T.CanvasTexture(boardCanvas())); boardTex.colorSpace = T.SRGBColorSpace;
     const sideMat = keep(new T.MeshStandardMaterial({color: 0xc8923e, roughness: 0.7}));
     const topMat = keep(new T.MeshStandardMaterial({map: boardTex, roughness: 0.6}));
     const boardGeo = keep(new T.BoxGeometry(9.6, 0.9, 9.6));
     const board = new T.Mesh(boardGeo, [sideMat, sideMat, topMat, sideMat, sideMat, sideMat]);
     scene.add(board);
-    sfx('rise', 3);
-    await play(1000, t => {
-      const e = easeIn(t);
-      camera.position.set(0, 10 + e * 500, 5 + e * 60);
-      camera.lookAt(0, 0, 0);
-      board.rotation.y = e * 2;
-      scene.background.copy(sky).lerp(black, Math.min(1, t * 1.3));
-    });
-    flash('#fff', 450);
-    scene.remove(board);
-    hemi.intensity = 0.15;
-
-    // ---- 2. 宇宙から見た地球 ----
-    const tex = earthTextures();
-    const landTex = keep(earthPhoto ? new T.Texture(earthPhoto) : new T.CanvasTexture(tex.land));
-    landTex.needsUpdate = true; landTex.colorSpace = T.SRGBColorSpace; landTex.wrapS = T.RepeatWrapping;
-    const cloudTex = keep(new T.CanvasTexture(tex.cloud));
-    const earthMat = keep(new T.MeshStandardMaterial({map: landTex, roughness: 0.85, metalness: 0}));
+    // 地球
+    const earthMat = keep(new T.MeshStandardMaterial({map: A.landTex, roughness: 0.85, metalness: 0}));
     const lavaMat = keep(new T.MeshStandardMaterial({color: 0x3a1408, emissive: 0xff4a10, emissiveIntensity: 1.6, roughness: 0.9, side: T.DoubleSide}));
     const {chunks, crackPos} = buildEarthChunks(earthMat, lavaMat);
     const earth = new T.Group();
-    chunks.forEach(c => { earth.add(c); trash.push(c.geometry); });
+    chunks.forEach(c => earth.add(c));
     const cloudGeo = keep(new T.SphereGeometry(1.015, 64, 32));
-    const cloudMat = keep(new T.MeshStandardMaterial({map: cloudTex, transparent: true, depthWrite: false}));
+    const cloudMat = keep(new T.MeshStandardMaterial({map: A.cloudTex, transparent: true, depthWrite: false}));
     const clouds = new T.Mesh(cloudGeo, cloudMat);
     earth.add(clouds);
     const crackGeo = keep(new T.BufferGeometry()); crackGeo.setAttribute('position', new T.Float32BufferAttribute(crackPos, 3));
@@ -2489,17 +2524,60 @@ async function earth3D() {
     }));
     const atmo = new T.Mesh(atmoGeo, atmoMat);
     scene.add(atmo);
-    // 星
     const starPos = [];
     for (let i = 0; i < 1800; i++) { const d = new T.Vector3(rr(-1, 1), rr(-1, 1), rr(-1, 1)).normalize().multiplyScalar(rr(150, 300)); starPos.push(d.x, d.y, d.z); }
     const starGeo = keep(new T.BufferGeometry()); starGeo.setAttribute('position', new T.Float32BufferAttribute(starPos, 3));
     const starMat = keep(new T.PointsMaterial({color: 0xffffff, size: 1.6, sizeAttenuation: false}));
-    scene.add(new T.Points(starGeo, starMat));
-    sun.position.set(5, 2, 4); sun.intensity = 3;
-    // 衝撃点（ここに盤があった）
-    const hotTex = keep(glowTexture([[0, 'rgba(255,255,255,1)'], [0.25, 'rgba(255,220,120,.9)'], [0.6, 'rgba(255,90,20,.4)'], [1, 'rgba(255,60,0,0)']]));
-    const hotMat = keep(new T.SpriteMaterial({map: hotTex, blending: T.AdditiveBlending, depthWrite: false, transparent: true}));
+    const stars = new T.Points(starGeo, starMat);
+    scene.add(stars);
+    const hotMat = keep(new T.SpriteMaterial({map: A.hotTex, blending: T.AdditiveBlending, depthWrite: false, transparent: true}));
     const hot = new T.Sprite(hotMat);
+    scene.add(hot);
+    // 爆発
+    const coreMat = keep(new T.SpriteMaterial({map: A.coreTex, blending: T.AdditiveBlending, depthWrite: false, transparent: true}));
+    const core = new T.Sprite(coreMat); core.scale.setScalar(0.5); scene.add(core);
+    const ringGeo = keep(new T.RingGeometry(0.92, 1, 96));
+    const ringMat = keep(new T.MeshBasicMaterial({color: 0xffd9a0, transparent: true, blending: T.AdditiveBlending, side: T.DoubleSide, depthWrite: false}));
+    const ring1 = new T.Mesh(ringGeo, ringMat); ring1.rotation.set(1.25, 0.2, 0); scene.add(ring1);
+    const ringMat2 = keep(ringMat.clone()); ringMat2.color.set(0x7ac7ff);
+    const ring2 = new T.Mesh(ringGeo, ringMat2); ring2.rotation.set(-0.4, 0.9, 0); scene.add(ring2);
+    const DN = 2400, dPos = new Float32Array(DN * 3), dVel = [], dCol = new Float32Array(DN * 3);
+    const palette = [[1, 0.85, 0.5], [1, 0.5, 0.15], [0.3, 0.6, 1], [0.35, 0.7, 0.35], [1, 1, 1]];
+    for (let i = 0; i < DN; i++) {
+      const d = new T.Vector3(rr(-1, 1), rr(-1, 1), rr(-1, 1)).normalize();
+      dPos.set([d.x * 0.9, d.y * 0.9, d.z * 0.9], i * 3);
+      dVel.push(d.multiplyScalar(rr(0.8, 5)));
+      dCol.set(pick(palette), i * 3);
+    }
+    const debGeo = keep(new T.BufferGeometry());
+    debGeo.setAttribute('position', new T.BufferAttribute(dPos, 3));
+    debGeo.setAttribute('color', new T.BufferAttribute(dCol, 3));
+    const debMat = keep(new T.PointsMaterial({size: 0.05, vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false}));
+    const debris = new T.Points(debGeo, debMat);
+    scene.add(debris);
+    // シェーダーを組み立て、模様を転送しておく（ここで一度だけ時間がかかる）
+    camera.position.set(0, 0, 6); camera.lookAt(0, 0, 0);
+    renderer.compile(scene, camera);
+    if (warm) { renderer.render(scene, camera); return; }
+    const later = [earth, atmo, stars, hot, core, ring1, ring2, debris];
+    later.forEach(o => { o.visible = false; });
+
+    // ---- 1. 盤からカメラが一気に空へ引いていく ----
+    sfx('rise', 3);
+    await play(1000, t => {
+      const e = easeIn(t);
+      camera.position.set(0, 10 + e * 500, 5 + e * 60);
+      camera.lookAt(0, 0, 0);
+      board.rotation.y = e * 2;
+      scene.background.copy(sky).lerp(black, Math.min(1, t * 1.3));
+    });
+    flash('#fff', 450);
+    scene.remove(board);
+    hemi.intensity = 0.15;
+
+    // ---- 2. 宇宙から見た地球 ----
+    [earth, atmo, stars, hot].forEach(o => { o.visible = true; });
+    sun.position.set(5, 2, 4); sun.intensity = 3;
     const hotDir = new T.Vector3(0.15, 0.25, 1).normalize();
     // 日本（東経138度・北緯36度）が衝撃点の正面に来るように回す
     const JP_LON = 138 * Math.PI / 180, JP_LAT = 36 * Math.PI / 180;
@@ -2508,7 +2586,6 @@ async function earth3D() {
     earth.rotation.set(JP_LAT - Math.asin(hotDir.y), baseY, 0);
     hot.position.copy(hotDir).multiplyScalar(1.02);
     hot.scale.setScalar(0.01);
-    scene.add(hot);
     // 縦長の画面でも地球がはみ出さない距離まで引く
     const fitDist = Math.max(4.3, 1.4 / (Math.tan(camera.fov * Math.PI / 360) * camera.aspect));
     const camStart = hotDir.clone().multiplyScalar(1.5), camEnd = new T.Vector3(0.3, 0.35, 4.3).normalize().multiplyScalar(fitDist);
@@ -2535,27 +2612,7 @@ async function earth3D() {
     flash('#fff', 900);
     earth.position.set(0, 0, 0);
     cracks.visible = false;  // ひび割れの線は、かけらが飛んだあとに網目として残るので爆発と同時に消す
-    const coreTex = keep(glowTexture([[0, 'rgba(255,255,240,1)'], [0.3, 'rgba(255,200,80,.95)'], [0.7, 'rgba(255,80,10,.35)'], [1, 'rgba(255,40,0,0)']]));
-    const coreMat = keep(new T.SpriteMaterial({map: coreTex, blending: T.AdditiveBlending, depthWrite: false, transparent: true}));
-    const core = new T.Sprite(coreMat); core.scale.setScalar(0.5); scene.add(core);
-    const ringGeo = keep(new T.RingGeometry(0.92, 1, 96));
-    const ringMat = keep(new T.MeshBasicMaterial({color: 0xffd9a0, transparent: true, blending: T.AdditiveBlending, side: T.DoubleSide, depthWrite: false}));
-    const ring1 = new T.Mesh(ringGeo, ringMat); ring1.rotation.set(1.25, 0.2, 0); scene.add(ring1);
-    const ringMat2 = keep(ringMat.clone()); ringMat2.color.set(0x7ac7ff); trash.push(ringMat2);
-    const ring2 = new T.Mesh(ringGeo, ringMat2); ring2.rotation.set(-0.4, 0.9, 0); scene.add(ring2);
-    const DN = 2400, dPos = new Float32Array(DN * 3), dVel = [], dCol = new Float32Array(DN * 3);
-    const palette = [[1, 0.85, 0.5], [1, 0.5, 0.15], [0.3, 0.6, 1], [0.35, 0.7, 0.35], [1, 1, 1]];
-    for (let i = 0; i < DN; i++) {
-      const d = new T.Vector3(rr(-1, 1), rr(-1, 1), rr(-1, 1)).normalize();
-      dPos.set([d.x * 0.9, d.y * 0.9, d.z * 0.9], i * 3);
-      dVel.push(d.multiplyScalar(rr(0.8, 5)));
-      dCol.set(pick(palette), i * 3);
-    }
-    const debGeo = keep(new T.BufferGeometry());
-    debGeo.setAttribute('position', new T.BufferAttribute(dPos, 3));
-    debGeo.setAttribute('color', new T.BufferAttribute(dCol, 3));
-    const debMat = keep(new T.PointsMaterial({size: 0.05, vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false}));
-    scene.add(new T.Points(debGeo, debMat));
+    [core, ring1, ring2, debris].forEach(o => { o.visible = true; });
     const camFrom = camera.position.clone();
     await play(2800, (t, dt) => {
       for (const c of chunks) {
@@ -2579,8 +2636,8 @@ async function earth3D() {
     });
     await anim(cv, [{opacity: 1}, {opacity: 0}], 500);
   } finally {
+    // 使い回す材料（描画部品・地球の模様・破片の形）は残し、それ以外を片付ける
     trash.forEach(o => { try { o.dispose(); } catch (e) {} });
-    renderer.dispose();
     cv.remove();
   }
 }
@@ -3564,6 +3621,7 @@ function syncHandle(d) {
   else if (d.t === 'end') showSyncResult(d);
 }
 function syncStartGame(d) {
+  setTimeout(warmEarth, 200);
   const st = d.st;
   G.mode = 'sync'; G.format = st.format; G.level = st.level; G.total = st.count; G.buttons = st.buttons; G.limit = st.limit;
   const n = d.players.length;
@@ -3752,7 +3810,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.3';
+const APP_VERSION = 'v1.0.4';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
