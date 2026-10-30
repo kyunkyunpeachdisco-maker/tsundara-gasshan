@@ -340,6 +340,12 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 .sb-chip.me{border-color:var(--gold);color:var(--gold)}.sb-chip.off{opacity:.55}
 .sb-chip em{font-style:normal;color:#ff7484;margin-left:4px}
 .app-ver{font-size:12px;color:#8890b0;margin-top:4px;letter-spacing:.1em}
+.lb-pend-head{margin-top:10px;font-size:14px;color:#ff9aab}
+.lb-pending{list-style:none;padding:0;margin:6px 0;text-align:left}
+.lb-pending li{display:flex;gap:8px;align-items:center;padding:4px 0}
+.lb-pending li span{flex:1}
+.lb-pending button{font-family:'DotGothic16',monospace;font-size:15px;padding:4px 12px;border:2px solid #08080c;color:#fff;background:#2c9c48}
+.lb-pending button[data-ok="0"]{background:#8c1424}
 .emoji-fly canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
 /* 設定欄：左にラベル、右に選択欄。縦の線をそろえ、幅は上のボタンと同じ */
 .opt-row{display:grid;grid-template-columns:auto 1fr;gap:12px 14px;width:min(360px,90vw);align-items:center;justify-items:stretch;text-align:left}
@@ -3304,7 +3310,7 @@ async function animMove(m, label = '助かる手', text = null, quiet = false) {
 // 接続には PeerJS（WebRTC の仲介。最初に相手を見つけるときだけ公開サーバーを使う）を使う
 const SYNC_MAX = 6;
 const SYNC_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const S = {peer: null, host: false, code: '', hostConn: null, players: [], me: 0, offset: 0, round: null, started: false, pongWait: null};
+const S = {peer: null, host: false, code: '', hostConn: null, players: [], pending: [], me: 0, offset: 0, round: null, started: false, pongWait: null};
 const esc = t => String(t).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const peerIdOf = code => 'tsundara-gasshan-' + code;
 const waitUntil = t => wait(Math.max(0, t - performance.now()));
@@ -3361,9 +3367,12 @@ function renderRoom() {
   if (S.host) {
     const url = `${location.origin}${location.pathname}?room=${S.code}`;
     body.innerHTML = `<div class="lb-code">部屋番号 <b>${S.code}</b></div><div id="lbQR" class="lb-qr"></div>
-      <p class="lb-note">スマホのカメラでQRコードを読むか、部屋番号を入れて参加</p>
+      <p class="lb-note">スマホのカメラでQRコードを読むか、部屋番号を入れて参加。参加にはホストの許可が要ります</p>
       <p class="lb-set">${esc(syncSettingsLabel(readSettings()))}</p>
-      <ul class="lb-players">${list}</ul>`;
+      <ul class="lb-players">${list}</ul>
+      ${S.pending.length ? `<div class="lb-pend-head">参加の申し込み</div><ul class="lb-pending">${S.pending.map((x, i) =>
+        `<li><span>${esc(x.name)}</span><button data-ok="1" data-i="${i}">許可</button><button data-ok="0" data-i="${i}">断る</button></li>`).join('')}</ul>` : ''}`;
+    body.querySelectorAll('.lb-pending button').forEach(b => b.onclick = () => hostApprove(+b.dataset.i, b.dataset.ok === '1'));
     loadQR().then(() => {
       const q = qrcode(0, 'M'); q.addData(url); q.make();
       if ($('lbQR')) $('lbQR').innerHTML = q.createImgTag(5, 8);
@@ -3422,9 +3431,10 @@ function hostOnConn(conn) {
   conn.on('open', () => {
     if (S.started || S.players.filter(p => !p.gone).length >= SYNC_MAX) { conn.send({t: 'full', started: S.started}); setTimeout(() => conn.close(), 500); return; }
     const name = String((conn.metadata && conn.metadata.name) || '名無し').slice(0, 8);
-    S.players.push({name, conn});
-    conn.send({t: 'welcome', me: S.players.length - 1, code: S.code});
-    hostBroadcastPlayers();
+    S.pending.push({name, conn});
+    conn.send({t: 'waiting'});
+    sfx('tap');
+    renderRoom();
   });
   conn.on('data', d => {
     const idx = S.players.findIndex(p => p.conn === conn);
@@ -3432,12 +3442,29 @@ function hostOnConn(conn) {
     else if (d.t === 'press' && idx > 0) hostOnPress(idx, d);
   });
   conn.on('close', () => {
+    const w = S.pending.findIndex(x => x.conn === conn);
+    if (w >= 0) { S.pending.splice(w, 1); if (!S.started) renderRoom(); return; }
     const p = S.players.find(p => p.conn === conn);
     if (!p) return;
     p.gone = true;
     hostBroadcastPlayers();
     if (S.round && !S.round.decided) hostCheckAllOut();
   });
+}
+// ホストが参加を許可する／断る
+function hostApprove(i, ok) {
+  const x = S.pending[i];
+  if (!x) return;
+  S.pending.splice(i, 1);
+  if (!ok || S.started || S.players.filter(p => !p.gone).length >= SYNC_MAX) {
+    x.conn.send(ok ? {t: 'full', started: S.started} : {t: 'rejected'});
+    setTimeout(() => x.conn.close(), 500);
+    renderRoom();
+    return;
+  }
+  S.players.push(x);
+  x.conn.send({t: 'welcome', me: S.players.length - 1, code: S.code});
+  hostBroadcastPlayers();
 }
 function bc(msg) { S.players.forEach(p => { if (p.conn && !p.gone && p.conn.open) p.conn.send(msg); }); }
 function hostBroadcastPlayers() {
@@ -3547,6 +3574,8 @@ async function syncClock() {
 function guestOnData(d) {
   if (d.t === 'pong') { if (S.pongWait) { S.pongWait(d); S.pongWait = null; } return; }
   if (d.t === 'full') return syncLost(d.started ? 'この部屋はもう始まっています' : '部屋がいっぱいです（6人まで）');
+  if (d.t === 'waiting') { showLobby('wait', `部屋 ${S.code} のホストの許可を待っています…`); return; }
+  if (d.t === 'rejected') return syncLost('ホストに参加を断られました');
   if (d.t === 'welcome') { S.me = d.me; syncClock(); return; }
   syncHandle(d);
 }
@@ -3751,7 +3780,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.0';
+const APP_VERSION = 'v1.0.1';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
