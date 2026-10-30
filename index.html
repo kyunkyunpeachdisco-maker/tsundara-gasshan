@@ -352,6 +352,8 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 .lb-pending li span{flex:1}
 .lb-pending button{font-family:'DotGothic16',monospace;font-size:15px;padding:4px 12px;border:2px solid #08080c;color:#fff;background:#2c9c48}
 .lb-pending button[data-ok="0"]{background:#8c1424}
+/* 影の多い大きな文字を拡大・縮小するときは、一度絵にしてから動かす（毎コマ描き直すと止まる） */
+.call-text,.banner .main,.burst,.stamp,.bang{will-change:transform,opacity}
 .emoji-fly canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
 /* 設定欄：左にラベル、右に選択欄。縦の線をそろえ、幅は上のボタンと同じ */
 .opt-row{display:grid;grid-template-columns:auto 1fr;gap:12px 14px;width:min(360px,90vw);align-items:center;justify-items:stretch;text-align:left}
@@ -1360,6 +1362,7 @@ function startGame(mode) {
   synth.unlock();
   preload3D();
   setTimeout(warmEarth, 200);  // 「第1局」の幕のあいだに地球破壊の準備を済ませる
+  setTimeout(warmBigText, 100);
   prepareRecs();
   G.mode = mode;
   G.total = +$('optCount').value;
@@ -1655,7 +1658,7 @@ async function finishRound(win, missed) {
     padMsg(win.player, `正解！ ${(win.rt / 1000).toFixed(2)}秒`);
     $('timer').textContent = (win.rt / 1000).toFixed(2) + '秒';
     sfx('correct');
-    await wait(250);
+    if (pos.answer === 'none') await wait(250);
     if (pos.answer !== 'none') {
       await callCutin(win.player, win.call || callText(win.player), !!win.call);
       await hitStop();
@@ -2056,7 +2059,7 @@ async function destroyTablecloth() {
   // 手が盤の端をつかむ
   const hand = spriteAt('hand', bRect.right + 30, bRect.top + bRect.height / 2, bRect.width * 0.36, {rot: -90});
   await anim(hand, [{transform: 'translateX(60px)', opacity: 0}, {transform: 'translateX(0)', opacity: 1}], {duration: 180, easing: 'ease-out'});
-  await wait(300);
+  await wait(150);
   // 一気に引き抜く（盤はクロスのようにゆがみながら飛んでいく）。額縁も消えて、テーブルがあらわになる
   sfx('swoosh');
   Object.assign(boardWrap.style, {background: 'transparent', borderColor: 'transparent', boxShadow: 'none'});
@@ -2425,6 +2428,21 @@ function buildEarthChunks(earthMat, lavaMat) {
   base.dispose();
   earthChunkCache = {geos: chunks.map(c => c.geometry), dirs: seeds, crackPos};
   return {chunks, crackPos};
+}
+// 決め台詞・ランクの大きな文字は、初めて出すときだけ準備で一瞬止まるので、見えない状態で一度出しておく
+async function warmBigText() {
+  const el = document.createElement('div'); el.className = 'call';
+  Object.assign(el.style, {opacity: '0.01', pointerEvents: 'none'});
+  el.style.setProperty('--pc', '#2c5cd8'); el.style.setProperty('--cs', 'min(24vmin, 12vw)');
+  el.innerHTML = `<div class="call-text goldtext">${esc(callText(0))}</div>`;
+  const b = document.createElement('div'); b.className = 'banner'; b.style.opacity = '0.01';
+  b.innerHTML = '<div class="rk">ランク</div><div class="main" style="font-size:48px">地球破壊日曜の夕方</div><div class="sub">0.00秒</div>';
+  cutinLayer.appendChild(el); document.body.appendChild(b);
+  const t = el.firstElementChild;
+  await Promise.all([
+    t.animate([{transform: 'scale(3.2)'}, {transform: 'scale(1)'}], {duration: 240}).finished,
+    b.animate([{transform: 'scale(2.4)'}, {transform: 'scale(1)'}], {duration: 240}).finished]);
+  el.remove(); b.remove();
 }
 // 3D の描画部品と、毎回同じ材料（地球の破片の形・模様・光）は一度だけ作って使い回す。
 // 初めて使うときの準備（シェーダーの組み立て・模様の転送）で画面が止まらないよう、対局の始めに warmEarth() で済ませておく
@@ -3754,7 +3772,7 @@ async function syncFinish(d) {
     if (mine) G.times[S.me].push(w.rt);
     padMsg(0, mine ? `正解！ ${(w.rt / 1000).toFixed(2)}秒` : `${name} が正解`);
     sfx('correct');
-    await wait(250);
+    if (pos.answer === 'none') await wait(250);
     const sub = (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${name} ${(w.rt / 1000).toFixed(2)}秒`;
     if (pos.answer !== 'none') {
       await syncCallCutin(w.idx, w.call || '詰んだ！', mine);
@@ -3810,7 +3828,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.4';
+const APP_VERSION = 'v1.0.5';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
