@@ -326,6 +326,9 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 .high-table{margin:8px auto 0;border-collapse:collapse;font-size:15px}
 .high-table td{padding:2px 10px;border-bottom:1px solid rgba(248,200,56,.25)}
 .high-table tr.me td{color:#f8c838;background:rgba(248,200,56,.12)}
+.miss-list{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.miss-btn{font:inherit;font-size:14px;color:#fff;background:#1a1a2a;border:2px solid var(--gold-d);padding:6px 10px;text-align:left;cursor:pointer}
+.miss-btn small{display:block;font-size:12px;color:#a8b0c8}
 .high-head{margin-top:12px;font-size:14px;color:#cfd8e6}
 .high-new{color:#f8c838;font-size:22px;animation:blink 1s steps(1) infinite}
 #lobby{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:16px;padding:20px;text-align:center;overflow-y:auto}
@@ -437,7 +440,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
         <select id="optPieces"><option value="few">少なめ（すっきり）</option><option value="many">多め（実戦風）</option></select>
       </label>
       <label id="lblFx">演出
-        <select id="optFx"><option value="full">フル（盤を壊す）</option><option value="short">短め（すぐ次へ）</option></select>
+        <select id="optFx"><option value="full">フル（技＋解説）</option><option value="waza">技のみ</option><option value="explain">解説のみ</option><option value="none">すぐ次へ</option></select>
       </label>
       <label id="lblLimit">制限時間
         <select id="optLimit"><option value="5">5秒</option><option value="10">10秒</option><option value="20">20秒</option><option value="30">30秒</option><option value="0">なし</option></select>
@@ -490,7 +493,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
         <p>CPUどうしが<span class="phr">1手ずつ指していく。</span><span class="phr">どちらかの王が詰んだら</span><span class="phr">（何手詰めでも）、</span><span class="phr">その瞬間から押せる。</span><span class="phr">早すぎるとお手つき。</span></p>
         <h3>▶ 演出・駒の数</h3>
         <ul class="hl">
-          <li>・<b>演出 短め</b>：<span class="phr">盤を壊す演出をとばして、</span><span class="phr">すぐ次の問題へ</span></li>
+          <li>・<b>演出</b>：<span class="phr">技（盤を壊す演出）と解説を</span><span class="phr">出すかどうかを選べる。</span><span class="phr">「すぐ次へ」は</span><span class="phr">どちらもとばして次の問題へ</span></li>
         </ul>
         <ul class="hl">
           <li>・<b>少なめ</b>：<span class="phr">すっきりした局面</span></li>
@@ -505,8 +508,8 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
           <li>・<b>正解</b>：<span class="phr">点数に加えて、</span><span class="phr">速さに応じて持ち時間が増える</span><span class="phr">（地球破壊+3秒、</span><span class="phr">日曜の夕方+2秒、</span><span class="phr">盤を叩き割る+1秒）</span></li>
           <li>・<b>ミス</b>：<span class="phr">持ち時間−5秒で、</span><span class="phr">×が1つつく。</span><span class="phr">点数は減らない</span></li>
         </ul>
-        <p>解説は出さずに、<span class="phr">すぐ次の問題へ進む。</span><span class="phr">演出を「短め」にすると、</span><span class="phr">盤を壊す演出もとばして</span><span class="phr">さらにテンポよく進む。</span></p>
-        <p>初級以上と駒多めは、<span class="phr">秒数がすべて同じ倍率で増える</span><span class="phr">（上級なら持ち時間360秒）。</span><span class="phr">得点と正解数は、</span><span class="phr">それぞれ記録される。</span></p>
+        <p>解説は出さずに、<span class="phr">すぐ次の問題へ進む。</span><span class="phr">外した問題の解説は、</span><span class="phr">終わったあとの結果画面で見られる。</span><span class="phr">演出を「解説のみ」か</span><span class="phr">「すぐ次へ」にすると、</span><span class="phr">技もとばして</span><span class="phr">さらにテンポよく進む。</span></p>
+        <p>初級以上と駒多めは、<span class="phr">秒数がすべて同じ倍率で増える</span><span class="phr">（上級なら持ち時間360秒）。</span><span class="phr">得点と正解数は、</span><span class="phr">正答率と一緒に</span><span class="phr">それぞれ記録される。</span></p>
       </div>
       <div class="hpage">
         <h3>▶ 点数</h3>
@@ -1512,8 +1515,11 @@ const RANK_LIMITS = [[7, 800], [6, 1600], [5, 2500], [4, 3500], [3, 5000], [2, 1
 const streakBonus = n => Math.max(0, Math.min(n - 1, 5));
 // 詰みなしを見抜いたときの加点
 const NONE_BONUS = 3;
-// 演出「短め」：盤を壊す演出・決め台詞のカットイン・お手つきの薙ぎ払いをとばし、結果だけ短く出す
-const fxShort = () => $('optFx').value === 'short';
+// 演出：full＝技（盤を壊す演出）と解説 / waza＝技だけ / explain＝解説だけ / none＝どちらもなしですぐ次へ
+// 技なし：決め台詞のカットイン・盤を壊す演出・お手つきの薙ぎ払いをとばし、結果だけ短く出す
+const fxShort = () => ['explain', 'none'].includes($('optFx').value);
+// 解説なし：答えの表示のあと、すぐ次の問題へ
+const noExplain = () => ['waza', 'none'].includes($('optFx').value);
 // スコアアタック（入門・駒少なめの秒数。難易度と駒の数の倍率をかけて使う）
 // 持ち時間60秒。正解でランク7は+3秒・6は+2秒・5は+1秒。外すと−5秒で×1つ。×3つか持ち時間切れで終わり
 const ATTACK = {start: 60000, penalty: 5000, gain: {7: 3000, 6: 2000, 5: 1000}, maxMiss: 3};
@@ -1600,7 +1606,7 @@ function startGame(mode) {
   // スコアアタック：問題の出し方は詰め将棋と同じで、持ち時間と×の数で終わる
   G.attack = G.format === 'attack' && mode === 'solo';
   if (G.format === 'attack') G.format = 'quiz';
-  if (G.attack) { G.total = Infinity; G.limit = 0; G.attackPieces = PIECE_MODE; G.clock = ATTACK.start * attackFactor(); G.miss = 0; G.endReason = null; }
+  if (G.attack) { G.total = Infinity; G.limit = 0; G.attackPieces = PIECE_MODE; G.clock = ATTACK.start * attackFactor(); G.miss = 0; G.endReason = null; G.missedList = []; }
   buildPads();
   G.q = 0; G.scores = [0, 0]; G.times = [[], []]; G.rest = [0, 0]; G.streak = [0, 0];
   showScreen('game');
@@ -1937,9 +1943,10 @@ async function finishRound(win, missed) {
     // ふたりで対局では「自分」「相手」がどちらを指すか分からないので、1P・2Pで言う
     const ansText = G.mode === 'duo' ? {K0: '1Pの王が詰み', K1: '2Pの玉が詰み', none: '詰みなし'}[pos.answer] : CHOICES.find(c => c[0] === pos.answer)[1];
     await banner(G.attack && G.endReason ? (G.endReason === 'time' ? 'TIME UP' : 'GAME OVER') : missed ? 'お手つき…' : 'TIME UP', `正解は「${ansText}」`, 1300);
-    // スコアアタックは外しても解説を出さず、正解だけ見せて次へ
-    if (G.attack) return nextRound();
+    // スコアアタックは外しても解説を出さず、正解だけ見せて次へ。外した問題は結果画面から見直せるように残す
+    if (G.attack) { G.missedList.push({q: G.q, pos: G.pos}); return nextRound(); }
   }
+  if (noExplain()) { await wait(300); return nextRound(); }
   await explain();
 }
 
@@ -1965,12 +1972,12 @@ function highTable(key, mark) {
   if (!list.length) return '';
   const byCorrect = key.endsWith('#correct');
   return '<table class="high-table">' + list.map((e, i) =>
-    `<tr class="${e.t === mark ? 'me' : ''}"><td>${i + 1}位</td><td>${byCorrect ? `${e.correct}問` : `${e.score}点`}</td><td>${byCorrect ? `${e.score}点` : e.correct != null ? `${e.correct}問` : e.avg ?? '—'}</td><td>${e.date}</td></tr>`).join('') + '</table>';
+    `<tr class="${e.t === mark ? 'me' : ''}"><td>${i + 1}位</td><td>${byCorrect ? `${e.correct}問` : `${e.score}点`}</td><td>${byCorrect ? `${e.score}点` : e.correct != null ? `${e.correct}問` : e.avg ?? '—'}</td>${e.rate != null ? `<td>${e.rate}%</td>` : ''}<td>${e.date}</td></tr>`).join('') + '</table>';
 }
 // スコアアタックの記録：得点の上位5件と、正解数の上位5件を別々に残す。それぞれの順位を返す
-function recordAttack(score, correct) {
+function recordAttack(score, correct, rate) {
   const highs = loadHighs(), key = highKey('attack', G.level, 0, G.attackPieces);
-  const d = new Date(), entry = {score, correct, date: `${d.getMonth() + 1}/${d.getDate()}`, t: d.getTime()};
+  const d = new Date(), entry = {score, correct, rate, date: `${d.getMonth() + 1}/${d.getDate()}`, t: d.getTime()};
   const put = (k, cmp) => { const list = (highs[k] || []).concat([entry]).sort((a, b) => cmp(a, b) || a.t - b.t).slice(0, 5); highs[k] = list; return list.indexOf(entry) + 1; };
   const ps = put(key, (a, b) => b.score - a.score), pc = put(key + '#correct', (a, b) => b.correct - a.correct || b.score - a.score);
   save('highscores', highs);
@@ -1998,14 +2005,17 @@ function showResult() {
   } else if (G.attack) {
     const correct = G.times[0].length;
     $('resultTitle').textContent = `${G.scores[0]}点`;
-    html = `スコアアタック終了（${G.endReason === 'miss' ? `×が${ATTACK.maxMiss}つ` : '持ち時間切れ'}）<br>正解 ${correct}問　平均 ${avg(G.times[0])}`;
+    const rate = Math.round(correct / Math.max(1, correct + G.miss) * 100);
+    html = `スコアアタック終了（${G.endReason === 'miss' ? `×が${ATTACK.maxMiss}つ` : '持ち時間切れ'}）<br>正解 ${correct}問（正答率 ${rate}%）　平均 ${avg(G.times[0])}`;
     // 1問も正解していなければ記録しない（0点の行で記録表が埋まらないように）
-    const [ps, pc, key, t] = correct ? recordAttack(G.scores[0], correct) : [0, 0, highKey('attack', G.level, 0, G.attackPieces), null];
+    const [ps, pc, key, t] = correct ? recordAttack(G.scores[0], correct, rate) : [0, 0, highKey('attack', G.level, 0, G.attackPieces), null];
     if (ps === 1) html += '<br><b class="high-new">ハイスコア更新！</b>';
     if (pc === 1) html += '<br><b class="high-new">最多正解 更新！</b>';
     if (correct && (ps !== 1 || pc !== 1) && (ps > 1 || pc > 1)) html += `<br><b style="color:#ffe27a">得点${ps ? ps + '位' : '圏外'}・正解数${pc ? pc + '位' : '圏外'}</b>`;
     html += `<div class="high-head">得点（${highLabel('attack', G.level, 0, G.attackPieces)}）</div>` + highTable(key, ps ? t : null);
     html += `<div class="high-head">正解数</div>` + highTable(key + '#correct', pc ? t : null);
+    if (G.missedList.length) html += `<div class="high-head">外した問題（押すと解説）</div><div class="miss-list">` +
+      G.missedList.map((m, i) => `<button class="miss-btn" data-i="${i}">${m.q}問目　正解「${CHOICES.find(c => c[0] === m.pos.answer)[1]}」${CATEGORY_NAMES[m.pos.category] ? `<small>${CATEGORY_NAMES[m.pos.category]}</small>` : ''}</button>`).join('') + '</div>';
   } else {
     $('resultTitle').textContent = `${G.scores[0]}点`;
     html = `正解 ${G.times[0].length} / ${G.total}問<br>平均 ${avg(G.times[0])}`;
@@ -2023,6 +2033,29 @@ function showResult() {
     else html += `<br>今回の最速 ${(b / 1000).toFixed(2)}秒`;
   }
   $('resultBody').innerHTML = html;
+  $('resultBody').querySelectorAll('.miss-btn').forEach(b => b.addEventListener('click', () => { sfx('tap'); reviewMissed(G.missedList[+b.dataset.i]); }));
+}
+// 問題の種類の呼び名（見直しの一覧に添える）
+const CATEGORY_NAMES = {uchifu: '打ち歩詰めの反則', drop: '持ち駒を打って防げる', capture: '王手の駒を取れる', block: '駒を動かして防げる', kingcap: '玉で取れる', escape: '逃げ道がある', nocheck: '王手がかかっていない', nopen: '惜しい王手はあるが詰まない'};
+// スコアアタックの結果から、外した問題の解説を見る。最後のページで結果画面に戻る
+function reviewMissed(m) {
+  G.review = true;
+  showScreen('game');
+  $('curtain').classList.add('hidden');
+  clearFx();
+  setPads('disabled', true);
+  $('qno').textContent = `見直し ${m.q}問目`;
+  $('timer').textContent = '解説';
+  padMsg(0, '');
+  G.pos = m.pos;
+  renderBoard();
+  explain();
+}
+function endReview() {
+  endExplain();
+  clearFx();
+  G.review = false;
+  showScreen('result');
 }
 // 記録の画面：ハイスコア（モード・難易度・問題数ごとの上位5件）と最速記録
 function showScreen(id) { ['title', 'setup', 'howto', 'records', 'game', 'result', 'lobby'].forEach(x => $(x).classList.toggle('hidden', x !== id)); }
@@ -3134,7 +3167,9 @@ function initCalls() {
   PIECE_MODE = pcs.value;
   pcs.addEventListener('change', () => { save('pieces', pcs.value); PIECE_MODE = pcs.value; });
   const fxSel = $('optFx');
-  fxSel.value = load('fx', 'full'); if (!fxSel.value) fxSel.value = 'full';
+  const fxSaved = load('fx', 'full');
+  fxSel.value = fxSaved === 'short' ? 'explain' : fxSaved;  // 以前の「短め」は、技なし・解説ありだった
+  if (!fxSel.value) fxSel.value = 'full';
   fxSel.addEventListener('change', () => save('fx', fxSel.value));
   const lim = $('optLimit'), btns = $('optButtons');
   btns.value = String(load('buttons', 2)); if (!btns.value) btns.value = '2';  // 初めて開いたときは2ボタン（シンプルなので）
@@ -4164,6 +4199,7 @@ async function syncFinish(d) {
     const ansText = (G.buttons === 2 ? CHOICES_TWO : CHOICES).concat(CHOICES).find(c => c[0] === pos.answer)[1];
     await banner(d.missed ? (foulEndsRound() ? 'お手つき…' : '全員お手つき…') : 'TIME UP', `正解は「${ansText}」`, 1300);
   }
+  if (noExplain()) { if (S.host) { await wait(1200); hostNextRound(); } return; }
   await explain();
 }
 // 決め台詞：勝った人の名前と色で出す。勝った本人の端末では録音の声、ほかの端末では読み上げ
@@ -4206,7 +4242,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.14';
+const APP_VERSION = 'v1.0.15';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
@@ -4237,10 +4273,11 @@ $('nextPg').addEventListener('click', () => {
   if (!EXP || EXP.busy) return;
   sfx('tap');
   if (EXP.idx < EXP.pages.length - 1) gotoPage(EXP.idx + 1);
+  else if (G.review) endReview();
   else if (G.mode === 'sync') { if (S.host) hostNextRound(); }
   else nextRound();
 });
-$('skipBtn').addEventListener('click', () => { if (EXP && !EXP.busy) { sfx('tap'); if (G.mode === 'sync') { if (S.host) hostNextRound(); } else nextRound(); } });
+$('skipBtn').addEventListener('click', () => { if (EXP && !EXP.busy) { sfx('tap'); if (G.review) endReview(); else if (G.mode === 'sync') { if (S.host) hostNextRound(); } else nextRound(); } });
 $('againBtn').addEventListener('click', () => { if (S.peer) syncAgain(); else startGame(G.mode); });
 $('syncBtn').addEventListener('click', () => { synth.unlock(); preload3D(); showLobby('entry'); });
 $('toTitleBtn').addEventListener('click', () => { if (S.peer) leaveRoom(); else showTitle(); });
