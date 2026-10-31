@@ -1944,7 +1944,7 @@ async function finishRound(win, missed) {
     const ansText = G.mode === 'duo' ? {K0: '1Pの王が詰み', K1: '2Pの玉が詰み', none: '詰みなし'}[pos.answer] : CHOICES.find(c => c[0] === pos.answer)[1];
     await banner(G.attack && G.endReason ? (G.endReason === 'time' ? 'TIME UP' : 'GAME OVER') : missed ? 'お手つき…' : 'TIME UP', `正解は「${ansText}」`, 1300);
     // スコアアタックは外しても解説を出さず、正解だけ見せて次へ。外した問題は結果画面から見直せるように残す
-    if (G.attack) { G.missedList.push({q: G.q, pos: G.pos}); return nextRound(); }
+    if (G.attack) { G.missedList.push({q: G.q, pos: G.pos, timeout: !missed}); return nextRound(); }
   }
   if (noExplain()) { await wait(300); return nextRound(); }
   await explain();
@@ -2015,7 +2015,7 @@ function showResult() {
     html += `<div class="high-head">得点（${highLabel('attack', G.level, 0, G.attackPieces)}）</div>` + highTable(key, ps ? t : null);
     html += `<div class="high-head">正解数</div>` + highTable(key + '#correct', pc ? t : null);
     if (G.missedList.length) html += `<div class="high-head">外した問題（押すと解説）</div><div class="miss-list">` +
-      G.missedList.map((m, i) => `<button class="miss-btn" data-i="${i}">${m.q}問目　正解「${CHOICES.find(c => c[0] === m.pos.answer)[1]}」${CATEGORY_NAMES[m.pos.category] ? `<small>${CATEGORY_NAMES[m.pos.category]}</small>` : ''}</button>`).join('') + '</div>';
+      G.missedList.map((m, i) => `<button class="miss-btn" data-i="${i}">${m.q}問目　正解「${CHOICES.find(c => c[0] === m.pos.answer)[1]}」<small>${categoryName(m.pos)}${m.timeout ? '（時間切れ）' : ''}</small></button>`).join('') + '</div>';
   } else {
     $('resultTitle').textContent = `${G.scores[0]}点`;
     html = `正解 ${G.times[0].length} / ${G.total}問<br>平均 ${avg(G.times[0])}`;
@@ -2036,7 +2036,8 @@ function showResult() {
   $('resultBody').querySelectorAll('.miss-btn').forEach(b => b.addEventListener('click', () => { sfx('tap'); reviewMissed(G.missedList[+b.dataset.i]); }));
 }
 // 問題の種類の呼び名（見直しの一覧に添える）
-const CATEGORY_NAMES = {uchifu: '打ち歩詰めの反則', drop: '持ち駒を打って防げる', capture: '王手の駒を取れる', block: '駒を動かして防げる', kingcap: '玉で取れる', escape: '逃げ道がある', nocheck: '王手がかかっていない', nopen: '惜しい王手はあるが詰まない'};
+const CATEGORY_NAMES = {mate: '詰んでいた（逃げ道も、防ぐ手もない）', uchifu: '打ち歩詰めの反則', drop: '持ち駒を打って防げる', capture: '王手の駒を取れる', block: '駒を動かして防げる', kingcap: '玉で取れる', escape: '逃げ道がある', nocheck: '王手がかかっていない', nopen: '惜しい王手はあるが詰まない'};
+const categoryName = pos => pos.category === 'nmate' ? `${pos.level}手詰めがあった` : CATEGORY_NAMES[pos.category] || '';
 // スコアアタックの結果から、外した問題の解説を見る。最後のページで結果画面に戻る
 function reviewMissed(m) {
   G.review = true;
@@ -4242,7 +4243,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.16';
+const APP_VERSION = 'v1.0.17';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
