@@ -54,6 +54,8 @@ button{font-family:inherit;cursor:pointer}
 /* ---------- タイトル ---------- */
 #title::-webkit-scrollbar,#lobby::-webkit-scrollbar,.set-panel::-webkit-scrollbar{display:none}
 #title,#lobby,.set-panel{scrollbar-width:none}
+/* 縦にスクロールする画面は、ボタンの影などのはみ出しで横にずれないようにする */
+#title,#setup,#howto,#records,#lobby,#result,.set-panel{overflow-x:hidden;overscroll-behavior-x:none}
 /* タイトルのボタンは1行に収める（狭い画面では文字を少し小さく） */
 #title .arc-btn{font-size:min(22px,5.2vw)}
 #title{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:16px;padding:20px;text-align:center;overflow-y:auto;overflow-x:hidden;overscroll-behavior-x:none}
@@ -61,7 +63,7 @@ button{font-family:inherit;cursor:pointer}
 .logo{font-size:clamp(46px,13vw,92px);line-height:1.05;letter-spacing:.04em}
 .logo-sub{font-family:var(--f-mincho);font-size:14px;letter-spacing:.5em;color:var(--gold);margin-top:6px}
 .press{font-size:16px;letter-spacing:.25em;color:var(--gold)}
-.menu{display:flex;flex-direction:column;gap:14px;width:min(360px,90vw)}
+.menu{display:flex;flex-direction:column;gap:14px;width:min(360px,100%)}
 .arc-btn{position:relative;font-family:var(--f-goth);font-weight:900;font-size:21px;padding:14px;border-radius:10px;color:#fff;letter-spacing:.08em;
   border:2px solid var(--gold);background:linear-gradient(var(--hi) 0%,var(--base) 48%,var(--dark) 52%,var(--base) 100%);
   box-shadow:inset 0 0 0 2px rgba(0,0,0,.45),inset 0 2px 0 rgba(255,255,255,.5),0 4px 0 #3a2608,0 6px 14px rgba(0,0,0,.6);text-shadow:0 2px 0 rgba(0,0,0,.6)}
@@ -188,7 +190,7 @@ button{font-family:inherit;cursor:pointer}
   background:repeating-linear-gradient(0deg,rgba(255,255,255,.1) 0 2px,transparent 2px 5px)}
 
 /* ---------- 決め台詞 ---------- */
-.calls{width:min(420px,92vw);padding:10px 14px;text-align:left;font-size:14px}
+.calls{width:min(420px,100%);padding:10px 14px;text-align:left;font-size:14px}
 .calls h3{margin:0 0 8px;font-size:15px;color:var(--gold);font-family:var(--f-mincho);font-weight:800}
 .call-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
 .call-row .pname{font-weight:900;font-size:14px;padding:0 10px;border-radius:4px;line-height:22px}
@@ -328,7 +330,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 .high-new{color:#f8c838;font-size:22px;animation:blink 1s steps(1) infinite}
 #lobby{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:16px;padding:20px;text-align:center;overflow-y:auto}
 #lobby h2{font-size:34px;margin:0}
-#lobbyBody{width:min(380px,92vw);padding:14px 16px;font-size:15px;line-height:1.6}
+#lobbyBody{width:min(380px,100%);padding:14px 16px;font-size:15px;line-height:1.6}
 .lb-row{display:grid;grid-template-columns:5em 1fr;gap:10px;align-items:center;margin:8px 0;color:var(--gold);text-align:left}
 .lb-row input{font-family:'DotGothic16',monospace;font-size:18px;padding:6px 8px;background:#08080c;color:#fff;border:3px solid #f8f8f0;width:100%;min-width:0}
 .lb-note{font-size:13px;color:#d8c8b8;margin:6px 0}
@@ -365,15 +367,18 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 #setup .arc-btn{font-size:min(22px,5.2vw)}
 .sub-menu{flex-direction:row}
 .sub-menu .arc-btn{flex:1;font-size:18px;padding:10px}
-#howtoBody{width:min(540px,94vw);min-height:min(360px,55dvh)}
+#howtoBody{width:min(540px,100%);min-height:min(360px,55dvh)}
 .hpage{display:none}
 .hpage.on{display:block}
 .hnav{display:flex;align-items:center;gap:16px}
 .hnav .arc-btn{width:72px;padding:8px;font-size:20px}
 .hnav .arc-btn:disabled{opacity:.35}
 #howPg{color:var(--gold);min-width:56px}
+.hpage p{margin:0 0 8px}
+.hpage .hl{list-style:none;padding:0;margin:0 0 8px}
+.hpage .hl li{padding-left:1em;text-indent:-1em}
 #records h2{font-size:40px;margin:0}
-#recordsBody{width:min(420px,94vw);padding:12px 16px 16px}
+#recordsBody{width:min(420px,100%);padding:12px 16px 16px}
 #recordsBody h3{margin:12px 0 6px;color:var(--gold);font-size:18px}
 #recordsBody h3:first-child{margin-top:0}
 .rec-group{margin:10px 0 14px}
@@ -382,7 +387,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 .rec-open{width:min(360px,90vw);font-size:18px;padding:10px}
 .emoji-fly canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
 /* 設定欄：左にラベル、右に選択欄。縦の線をそろえ、幅は上のボタンと同じ */
-.opt-row{display:grid;grid-template-columns:auto 1fr;gap:12px 14px;width:min(360px,90vw);align-items:center;justify-items:stretch;text-align:left}
+.opt-row{display:grid;grid-template-columns:auto 1fr;gap:12px 14px;width:min(360px,100%);align-items:center;justify-items:stretch;text-align:left}
 .opt-row>label{display:contents}
 .opt-row select{width:100%}
 #setBody{display:grid;grid-template-columns:auto 1fr;gap:12px 14px;align-items:center}
@@ -451,46 +456,71 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
     <div class="howto plate" id="howtoBody">
       <div class="hpage">
         <h3>▶ 基本</h3>
-        盤面が出たら、すぐに答えを押す。速く当てるほど派手に盤が壊れる。間違えるとお手つき。相手にドン引きされる。<br>
-        <b>【ボタン2つ】</b>手前の自分の王だけを見て、「自分が詰み」か「詰みなし」を答える。自分が詰まされたら、悔しさのあまり盤をひっくり返す<br>
-        <b>【ボタン3つ】</b>どっちが詰んでいるかも当てる<br>
-        ・<b style="color:#8fd0ff">自分が詰み</b>：手前の青い枠の「王」（自分の王様）が詰んでいる<br>
-        ・<b style="color:#ff9aab">相手が詰み</b>：奥の赤い枠の「玉」（相手の王様）が詰んでいる<br>
-        ・<b style="color:#ffe27a">詰みなし</b>：どちらも詰んでいない（逃げられる・防げる・反則など）
+        <p>盤面が出たら、<span class="phr">詰んでいるかを見抜いて、</span><span class="phr">すぐにボタンを押す。</span></p>
+        <p>速く当てるほど、<span class="phr">盤が派手に壊れる。</span><span class="phr">間違えるとお手つき。</span><span class="phr">相手にドン引きされる。</span></p>
+        <h3>▶ ボタンが2つのとき</h3>
+        <p>手前の自分の王だけを見る。</p>
+        <ul class="hl">
+          <li>・<b style="color:#8fd0ff">自分が詰み</b>：<span class="phr">自分の王が詰んでいる</span></li>
+          <li>・<b style="color:#ffe27a">詰みなし</b>：<span class="phr">詰んでいない</span></li>
+        </ul>
+        <h3>▶ ボタンが3つのとき</h3>
+        <p>どちらの王が詰んでいるかも当てる。</p>
+        <ul class="hl">
+          <li>・<b style="color:#8fd0ff">自分が詰み</b>：<span class="phr">手前の青い枠の「王」が</span><span class="phr">詰んでいる</span></li>
+          <li>・<b style="color:#ff9aab">相手が詰み</b>：<span class="phr">奥の赤い枠の「玉」が</span><span class="phr">詰んでいる</span></li>
+          <li>・<b style="color:#ffe27a">詰みなし</b>：<span class="phr">どちらも詰んでいない</span><span class="phr">（逃げられる、防げる、</span><span class="phr">反則になる など）</span></li>
+        </ul>
       </div>
       <div class="hpage">
-        <h3>▶ モードと難易度</h3>
-        <b>【詰め将棋・入門】</b>今、詰んでいるかを答える<br>
-        <b>【初級・中級・上級】</b>まだ詰んでいない局面で、攻める側の番だとして「1手（3手・5手）で詰ませられるか」を答える。王手を続けて詰ませる、ふつうの詰将棋のルール<br>
-        <b>【リアル対局リセット】</b>CPUどうしが1手ずつ指していく（ときどき長考する）。どちらかに詰みが生じたら（何手詰めでも）、その瞬間から詰まされる側のボタンを押せる。早すぎるとお手つき。難易度の設定は使わない<br>
-        <b>【駒の数】</b>少なめはすっきりした局面。多めは駒が20枚以上の実戦風の局面で、読むのに時間がかかるぶん、秒数の基準が1.5倍ゆるくなる
+        <h3>▶ 詰め将棋</h3>
+        <ul class="hl">
+          <li>・<b>入門</b>：<span class="phr">今、詰んでいるか</span></li>
+          <li>・<b>初級</b>：<span class="phr">1手で詰ませられるか</span></li>
+          <li>・<b>中級</b>：<span class="phr">3手で詰ませられるか</span></li>
+          <li>・<b>上級</b>：<span class="phr">5手で詰ませられるか</span></li>
+        </ul>
+        <p>初級から上級は、<span class="phr">攻める側の番として考える。</span><span class="phr">王手を続けて詰ませる、</span><span class="phr">ふつうの詰将棋のルール。</span></p>
+        <h3>▶ リアル対局リセット</h3>
+        <p>CPUどうしが<span class="phr">1手ずつ指していく。</span><span class="phr">どちらかの王が詰んだら</span><span class="phr">（何手詰めでも）、</span><span class="phr">その瞬間から押せる。</span><span class="phr">早すぎるとお手つき。</span></p>
+        <h3>▶ 駒の数</h3>
+        <ul class="hl">
+          <li>・<b>少なめ</b>：<span class="phr">すっきりした局面</span></li>
+          <li>・<b>多め</b>：<span class="phr">実戦風の局面。</span><span class="phr">読むのに時間がかかるので、</span><span class="phr">秒数の基準が1.5倍ゆるい</span></li>
+        </ul>
       </div>
       <div class="hpage">
         <h3>▶ 点数</h3>
-        速さのランク（1〜7）がそのまま点数になる<br>
-        <b>【見切り】</b>詰みなしを正しく見抜いたら+3点<br>
-        <b>【連続正解ボーナス】</b>正解が続くと、2連続目は+1点、3連続目は+2点…と増える（6連続目以降は毎回+5点）。お手つきか、誰も答えずに時間切れになると途切れる<br>
-        <b>【お手つき】</b>ひとりは−5点。ふたりは減点なしだが、その局と次の局は答えられない（勘で押すと損をする重さ）
+        <p>速く答えるほどランクが上がり、<span class="phr">ランク（1〜7）が</span><span class="phr">そのまま点数になる。</span></p>
+        <ul class="hl">
+          <li>・<b>連続正解</b>：<span class="phr">2連続目は+1点、</span><span class="phr">3連続目は+2点…と増える</span><span class="phr">（最大+5点）。</span><span class="phr">お手つきか、</span><span class="phr">誰も答えずに時間切れになると</span><span class="phr">途切れる</span></li>
+          <li>・<b>見切り</b>：<span class="phr">詰みなしを当てると+3点</span></li>
+          <li>・<b>お手つき</b>：<span class="phr">ひとりのときは−5点。</span><span class="phr">ふたり以上のときは減点なしで、</span><span class="phr">その局と次の局は答えられない</span></li>
+        </ul>
       </div>
       <div class="hpage">
-      <h3>▶ 駒の見分け方</h3>
-      枠の色＝どちらの駒か（<span style="color:#8fd0ff">青＝手前の自分の駒</span>／<span style="color:#ff9aab">赤＝奥の相手の駒</span>）。中の色＝駒の種類。赤い文字は成った駒。
-      <div class="legend" id="legend"></div>
+        <h3>▶ 駒の見分け方</h3>
+        <ul class="hl">
+          <li>・<b>枠の色</b>：<span class="phr">どちらの駒か</span><span class="phr">（<span style="color:#8fd0ff">青＝自分</span>、<span style="color:#ff9aab">赤＝相手</span>）</span></li>
+          <li>・<b>中の色</b>：<span class="phr">駒の種類</span></li>
+          <li>・<b>赤い文字</b>：<span class="phr">成った駒</span></li>
+        </ul>
+        <div class="legend" id="legend"></div>
       </div>
       <div class="hpage">
-      <h3>▶ 速さで変わる破壊</h3>
-      <table>
-        <tr><td colspan="2">（入門の秒数。初級は2倍、中級は4倍、上級は6倍の秒数まで同じランク。駒多めはさらに1.5倍）</td></tr>
-        <tr><td>0.8秒未満</td><td>地球破壊</td></tr>
-        <tr><td>1.6秒未満</td><td>日曜の夕方</td></tr>
-        <tr><td>2.5秒未満</td><td>盤を叩き割る</td></tr>
-        <tr><td>3.5秒未満</td><td>テーブルクロス引き</td></tr>
-        <tr><td>5秒未満</td><td>中華テーブル回し</td></tr>
-        <tr><td>10秒未満</td><td>ちゃぶ台返し</td></tr>
-        <tr><td>それ以上</td><td>リセット</td></tr>
-      </table>
-      <h3>▶ クレジット</h3>
-      地球の写真：NASA Visible Earth（Blue Marble）
+        <h3>▶ 速さで変わる破壊</h3>
+        <p>下の秒数は入門のもの。<span class="phr">初級は2倍、中級は4倍、</span><span class="phr">上級は6倍の秒数まで</span><span class="phr">同じランクになる。</span><span class="phr">駒多めは、さらに1.5倍。</span></p>
+        <table>
+          <tr><td>0.8秒未満</td><td>地球破壊</td></tr>
+          <tr><td>1.6秒未満</td><td>日曜の夕方</td></tr>
+          <tr><td>2.5秒未満</td><td>盤を叩き割る</td></tr>
+          <tr><td>3.5秒未満</td><td>テーブルクロス引き</td></tr>
+          <tr><td>5秒未満</td><td>中華テーブル回し</td></tr>
+          <tr><td>10秒未満</td><td>ちゃぶ台返し</td></tr>
+          <tr><td>それ以上</td><td>リセット</td></tr>
+        </table>
+        <h3>▶ クレジット</h3>
+        <p>地球の写真：<span class="phr">NASA Visible Earth</span><span class="phr">（Blue Marble）</span></p>
       </div>
     </div>
     <div class="hnav">
@@ -4052,7 +4082,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.10';
+const APP_VERSION = 'v1.0.11';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
