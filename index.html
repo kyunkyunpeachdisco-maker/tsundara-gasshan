@@ -440,7 +440,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
         <select id="optButtons"><option value="3">3つ（どっちが詰み？）</option><option value="2">2つ（自分が詰みか？）</option></select>
       </label>
       <label id="lblFx">演出
-        <select id="optFx"><option value="full">フル（技＋解説）</option><option value="waza">技のみ</option><option value="explain">解説のみ</option><option value="none">すぐ次へ</option></select>
+        <select id="optFx"><option value="default">デフォルト（外したら解説）</option><option value="full">フル（技＋解説）</option><option value="waza">技のみ</option><option value="explain">解説のみ</option><option value="none">すぐ次へ</option></select>
       </label>
       <label id="lblBgm">BGM
         <select id="optBgm"><option value="0">オフ</option><option value="25">小</option><option value="50">中</option><option value="75">大</option><option value="100">最大</option></select>
@@ -493,7 +493,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
         <p>CPUどうしが<span class="phr">1手ずつ指していく。</span><span class="phr">どちらかの王が詰んだら</span><span class="phr">（何手詰めでも）、</span><span class="phr">その瞬間から押せる。</span><span class="phr">早すぎるとお手つき。</span></p>
         <h3>▶ 演出・駒の数</h3>
         <ul class="hl">
-          <li>・<b>演出</b>：<span class="phr">技（盤を壊す演出）と解説を</span><span class="phr">出すかどうかを選べる。</span><span class="phr">「すぐ次へ」は</span><span class="phr">どちらもとばして次の問題へ</span></li>
+          <li>・<b>演出</b>：<span class="phr">技（盤を壊す演出）と解説を</span><span class="phr">出すかどうかを選べる。</span><span class="phr">「デフォルト」は技を出し、</span><span class="phr">外したときだけ解説を出す。</span><span class="phr">「すぐ次へ」は</span><span class="phr">どちらもとばして次の問題へ</span></li>
         </ul>
         <ul class="hl">
           <li>・<b>少なめ</b>：<span class="phr">すっきりした局面</span></li>
@@ -1515,11 +1515,12 @@ const RANK_LIMITS = [[7, 800], [6, 1600], [5, 2500], [4, 3500], [3, 5000], [2, 1
 const streakBonus = n => Math.max(0, Math.min(n - 1, 5));
 // 詰みなしを見抜いたときの加点
 const NONE_BONUS = 3;
-// 演出：full＝技（盤を壊す演出）と解説 / waza＝技だけ / explain＝解説だけ / none＝どちらもなしですぐ次へ
+// 演出：default＝技と、外したときだけ解説 / full＝技（盤を壊す演出）と解説 / waza＝技だけ / explain＝解説だけ / none＝どちらもなしですぐ次へ
 // 技なし：決め台詞のカットイン・盤を壊す演出・お手つきの薙ぎ払いをとばし、結果だけ短く出す
 const fxShort = () => ['explain', 'none'].includes($('optFx').value);
 // 解説なし：答えの表示のあと、すぐ次の問題へ
-const noExplain = () => ['waza', 'none'].includes($('optFx').value);
+// 正解した人がいたら解説を出さないか（default は、外したときだけ解説）
+const noExplain = (won = false) => ['waza', 'none'].includes($('optFx').value) || ($('optFx').value === 'default' && won);
 // スコアアタック（入門・駒少なめの秒数。難易度と駒の数の倍率をかけて使う）
 // 持ち時間60秒。正解でランク7は+3秒・6は+2秒・5は+1秒。外すと−5秒で×1つ。×3つか持ち時間切れで終わり
 const ATTACK = {start: 60000, penalty: 5000, gain: {7: 3000, 6: 2000, 5: 1000}, maxMiss: 3};
@@ -1951,7 +1952,7 @@ async function finishRound(win, missed) {
     // スコアアタックは外しても解説を出さず、正解だけ見せて次へ。外した問題は結果画面から見直せるように残す
     if (G.attack) { G.missedList.push({q: G.q, pos: G.pos, timeout: !missed}); return nextRound(); }
   }
-  if (noExplain()) { await wait(300); return nextRound(); }
+  if (noExplain(!!win)) { await wait(300); return nextRound(); }
   await explain();
 }
 
@@ -3198,7 +3199,7 @@ function initCalls() {
   PIECE_MODE = pcs.value;
   pcs.addEventListener('change', () => { save('pieces', pcs.value); PIECE_MODE = pcs.value; });
   const fxSel = $('optFx');
-  const fxSaved = load('fx', 'full');
+  const fxSaved = load('fx', 'default');  // 演出を一度も変えていない人は「デフォルト」
   fxSel.value = fxSaved === 'short' ? 'explain' : fxSaved;  // 以前の「短め」は、技なし・解説ありだった
   if (!fxSel.value) fxSel.value = 'full';
   fxSel.addEventListener('change', () => save('fx', fxSel.value));
@@ -4297,7 +4298,7 @@ async function syncFinish(d) {
     const ansText = (G.buttons === 2 ? CHOICES_TWO : CHOICES).concat(CHOICES).find(c => c[0] === pos.answer)[1];
     await banner(d.missed ? (foulEndsRound() ? 'お手つき…' : '全員お手つき…') : 'TIME UP', `正解は「${ansText}」`, 1300);
   }
-  if (noExplain()) { if (S.host) { await wait(1200); hostNextRound(); } return; }
+  if (noExplain(!!d.win)) { if (S.host) { await wait(1200); hostNextRound(); } return; }
   await explain();
 }
 // 決め台詞：勝った人の名前と色で出す。勝った本人の端末では録音の声、ほかの端末では読み上げ
@@ -4340,7 +4341,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.23';
+const APP_VERSION = 'v1.0.24';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
