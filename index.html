@@ -1507,7 +1507,11 @@ function buildPads() {
   for (const i of [0, 1]) {
     const pad = $('pad' + i);
     const n = G.level !== 'intro' && G.format !== 'live';
-    const choices = (G.buttons === 2 ? CHOICES_TWO : CHOICES).filter(c => G.format !== 'live' || c[0] !== 'none').map(([v, l, cls]) => [v, n && v !== 'none' ? l.replace('が詰み', 'が詰む') : l, cls]);
+    // ふたりで対局の2Pは向かい側に座るので、2Pから見た言葉にする（手元の赤い玉が「自分」）
+    const base = G.mode === 'duo' && i === 1
+      ? (G.buttons === 2 ? [['K0', '相手が詰み', 'b-k0'], CHOICES[2]] : [['K1', '自分が詰み', 'b-k1'], ['K0', '相手が詰み', 'b-k0'], CHOICES[2]])
+      : (G.buttons === 2 ? CHOICES_TWO : CHOICES);
+    const choices = base.filter(c => G.format !== 'live' || c[0] !== 'none').map(([v, l, cls]) => [v, n && v !== 'none' ? l.replace('が詰み', 'が詰む') : l, cls]);
     pad.innerHTML = `<div class="pad-head"><span class="name">${PLAYER_NAMES[i]}</span><span class="msg"></span><span class="score">得点 0</span></div>
       <div class="pad-btns" style="grid-template-columns:repeat(${choices.length},1fr)">${choices.map(([v, l, cls]) => `<button class="${cls}" data-v="${v}">${l}</button>`).join('')}</div>`;
     pad.querySelectorAll('button').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); press(i, b.dataset.v, e.timeStamp); }));
@@ -1626,8 +1630,8 @@ async function makeQuestionInner() {
     : generateN(n, kind, side) || generateN(n, kind === 'mate' ? 'trick' : 'mate', side);
   if (!q) return generateQuestion(side, forceMate);
   q.prompt = side != null
-    ? `${q.a === 0 ? '▲' : '△'}相手の番：<b>自分の王に${n}手詰めはある？</b>`
-    : `<b>自分か相手、どちらかに${n}手詰めはある？</b>`;
+    ? (G.mode === 'duo' ? `${q.a === 0 ? '▲' : '△'}2Pの番：<b>1Pの王に${n}手詰めはある？</b>` : `${q.a === 0 ? '▲' : '△'}相手の番：<b>自分の王に${n}手詰めはある？</b>`)
+    : (G.mode === 'duo' ? `<b>1Pか2P、どちらかの王に${n}手詰めはある？</b>` : `<b>自分か相手、どちらかに${n}手詰めはある？</b>`);
   return q;
 }
 // ---------- CPU対局（観戦モード）の進行 ----------
@@ -1870,7 +1874,8 @@ async function finishRound(win, missed) {
   } else {
     if (!missed) { G.streak = G.streak.map(() => 0); updateScores(); }  // 誰も答えずに時間切れなら、全員の連続が途切れる
     sfx('wrong');
-    const ansText = CHOICES.find(c => c[0] === pos.answer)[1];
+    // ふたりで対局では「自分」「相手」がどちらを指すか分からないので、1P・2Pで言う
+    const ansText = G.mode === 'duo' ? {K0: '1Pの王が詰み', K1: '2Pの玉が詰み', none: '詰みなし'}[pos.answer] : CHOICES.find(c => c[0] === pos.answer)[1];
     await banner(missed ? 'お手つき…' : 'TIME UP', `正解は「${ansText}」`, 1300);
   }
   await explain();
@@ -3337,7 +3342,7 @@ function endExplain() {
 }
 
 function buildPages(pos) {
-  const kingName = pos.d === 0 ? '自分の王' : '相手の玉';
+  const kingName = G.mode === 'duo' ? (pos.d === 0 ? '1Pの王' : '2Pの玉') : pos.d === 0 ? '自分の王' : '相手の玉';
   switch (pos.category) {
     case 'mate': return pagesMate(pos, kingName);
     case 'uchifu': return pagesUchifu(pos, kingName);
@@ -4092,7 +4097,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.12';
+const APP_VERSION = 'v1.0.13';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
