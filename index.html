@@ -357,6 +357,29 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 .call-text,.banner .main,.burst,.stamp,.bang{will-change:transform,opacity}
 .banner .plus{display:inline-block;font-size:40px;color:var(--gold);text-shadow:-3px 0 0 #08080c,3px 0 0 #08080c,0 -3px 0 #08080c,0 3px 0 #08080c,4px 4px 0 #b81c30;margin:2px 0}
 .slash{position:fixed;height:10px;margin-top:-5px;z-index:57;pointer-events:none;background:#fff;box-shadow:0 0 0 3px #08080c,0 0 18px #9ce0ff}
+#records{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:16px;padding:20px;text-align:center;overflow-y:auto;scrollbar-width:none}
+#records::-webkit-scrollbar{display:none}
+#setup,#howto{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:16px;padding:20px;text-align:center;overflow-y:auto;scrollbar-width:none}
+#setup::-webkit-scrollbar,#howto::-webkit-scrollbar{display:none}
+#setup h2,#howto h2{font-size:36px;margin:0}
+#setup .arc-btn{font-size:min(22px,5.2vw)}
+.sub-menu{flex-direction:row}
+.sub-menu .arc-btn{flex:1;font-size:18px;padding:10px}
+#howtoBody{width:min(540px,94vw);min-height:min(360px,55dvh)}
+.hpage{display:none}
+.hpage.on{display:block}
+.hnav{display:flex;align-items:center;gap:16px}
+.hnav .arc-btn{width:72px;padding:8px;font-size:20px}
+.hnav .arc-btn:disabled{opacity:.35}
+#howPg{color:var(--gold);min-width:56px}
+#records h2{font-size:40px;margin:0}
+#recordsBody{width:min(420px,94vw);padding:12px 16px 16px}
+#recordsBody h3{margin:12px 0 6px;color:var(--gold);font-size:18px}
+#recordsBody h3:first-child{margin-top:0}
+.rec-group{margin:10px 0 14px}
+.rec-label{font-size:14px;color:#cfd8e6}
+.rec-empty{font-size:14px;color:#a8b0c8;margin:6px 0}
+.rec-open{width:min(360px,90vw);font-size:18px;padding:10px}
 .emoji-fly canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
 /* 設定欄：左にラベル、右に選択欄。縦の線をそろえ、幅は上のボタンと同じ */
 .opt-row{display:grid;grid-template-columns:auto 1fr;gap:12px 14px;width:min(360px,90vw);align-items:center;justify-items:stretch;text-align:left}
@@ -373,12 +396,20 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 <div id="app">
   <section id="title">
     <div class="logo-wrap plate"><div class="logo goldtext">詰んだら<br>ガッシャン</div><div class="logo-sub">早押し詰将棋</div><div class="app-ver" id="appVer"></div></div>
-    <div class="press blink">― 遊び方を選んでください ―</div>
+    <div class="press blink">― 遊ぶ人数を選んでください ―</div>
     <div class="menu">
-      <button class="arc-btn c1" data-mode="solo">ひとりで対局</button>
-      <button class="arc-btn c2" data-mode="duo">ふたりで対局（1台で対面）</button>
+      <button class="arc-btn c1" data-setup="solo">ひとりで対局</button>
+      <button class="arc-btn c2" data-setup="duo">ふたりで対局（1台で対面）</button>
       <button class="arc-btn c3" id="syncBtn"><span class="phr">みんなで対局</span><wbr><span class="phr">（各自のスマホ・6人まで）</span></button>
     </div>
+    <div class="menu sub-menu">
+      <button class="arc-btn c2" id="howtoBtn">遊び方</button>
+      <button class="arc-btn c2" id="recordsBtn">記録</button>
+    </div>
+  </section>
+
+  <section id="setup" class="hidden">
+    <h2 class="goldtext" id="setupTitle"></h2>
     <div class="opt-row">
       <label id="lblFormat">モード
         <select id="optFormat"><option value="quiz">詰め将棋</option><option value="live">リアル対局リセット</option></select>
@@ -395,6 +426,9 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
       <label id="lblBgm">BGM
         <select id="optBgm"><option value="0">オフ</option><option value="25">小</option><option value="50">中</option><option value="75">大</option><option value="100">最大</option></select>
       </label>
+      <label id="lblPieces">駒の数
+        <select id="optPieces"><option value="few">少なめ（すっきり）</option><option value="many">多め（実戦風）</option></select>
+      </label>
       <label id="lblLimit">制限時間
         <select id="optLimit"><option value="5">5秒</option><option value="10">10秒</option><option value="20">20秒</option><option value="30">30秒</option><option value="0">なし</option></select>
       </label>
@@ -406,24 +440,47 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
       <label class="chk"><input type="checkbox" id="optVoice"> 録音した声を鳴らす</label>
     </div>
     <div class="hiscore" id="highRecord"></div>
-    <div class="hiscore" id="bestRecord"></div>
-    <div class="howto plate">
-      <h3>▶ あそびかた</h3>
-      盤面が出たら、すぐに答えを押す。ボタンの数は2種類から選べる。<br>
-      <b>【ボタン3つ】</b>どっちが詰んでいるかも当てる<br>
-      ・<b style="color:#8fd0ff">自分が詰み</b>：手前の青い枠の「王」（自分の王様）が詰んでいる<br>
-      ・<b style="color:#ff9aab">相手が詰み</b>：奥の赤い枠の「玉」（相手の王様）が詰んでいる<br>
-      ・<b style="color:#ffe27a">詰みなし</b>：どちらも詰んでいない（逃げられる・防げる・反則など）<br>
-      <b>【ボタン2つ】</b>手前の自分の王だけを見て、「自分が詰み」か「詰みなし」を答える。自分が詰まされたら、悔しさのあまり盤をひっくり返す<br>
-      <b>【リアル対局リセット】</b>CPUどうしが1手ずつ指していく（ときどき長考する）。どちらかに詰みが生じたら（何手詰めでも）、その瞬間から詰まされる側のボタンを押せる。早すぎるとお手つき。難易度の設定は使わない<br>
-      <b>【初級・中級・上級】</b>まだ詰んでいない局面で、攻める側の番だとして「1手（3手・5手）で詰ませられるか」を答える。王手を続けて詰ませる、ふつうの詰将棋のルール<br>
-      間違えるとお手つき。相手にドン引きされる。<br>      <b>【見切り】</b>詰みなしを正しく見抜いたら+3点<br>      <b>【連続正解ボーナス】</b>正解が続くと、2連続目は+1点、3連続目は+2点…と増える（6連続目以降は毎回+5点）。お手つきか、誰も答えずに時間切れになると途切れる<br>      <b>【お手つき】</b>ひとりは−5点。ふたりは減点なしだが、その局と次の局は答えられない（勘で押すと損をする重さ）
+    <div class="menu">
+      <button class="arc-btn c1" id="setupStart">開始</button>
+      <button class="arc-btn c2" id="setupBack">戻る</button>
+    </div>
+  </section>
+
+  <section id="howto" class="hidden">
+    <h2 class="goldtext">遊び方</h2>
+    <div class="howto plate" id="howtoBody">
+      <div class="hpage">
+        <h3>▶ 基本</h3>
+        盤面が出たら、すぐに答えを押す。速く当てるほど派手に盤が壊れる。間違えるとお手つき。相手にドン引きされる。<br>
+        <b>【ボタン2つ】</b>手前の自分の王だけを見て、「自分が詰み」か「詰みなし」を答える。自分が詰まされたら、悔しさのあまり盤をひっくり返す<br>
+        <b>【ボタン3つ】</b>どっちが詰んでいるかも当てる<br>
+        ・<b style="color:#8fd0ff">自分が詰み</b>：手前の青い枠の「王」（自分の王様）が詰んでいる<br>
+        ・<b style="color:#ff9aab">相手が詰み</b>：奥の赤い枠の「玉」（相手の王様）が詰んでいる<br>
+        ・<b style="color:#ffe27a">詰みなし</b>：どちらも詰んでいない（逃げられる・防げる・反則など）
+      </div>
+      <div class="hpage">
+        <h3>▶ モードと難易度</h3>
+        <b>【詰め将棋・入門】</b>今、詰んでいるかを答える<br>
+        <b>【初級・中級・上級】</b>まだ詰んでいない局面で、攻める側の番だとして「1手（3手・5手）で詰ませられるか」を答える。王手を続けて詰ませる、ふつうの詰将棋のルール<br>
+        <b>【リアル対局リセット】</b>CPUどうしが1手ずつ指していく（ときどき長考する）。どちらかに詰みが生じたら（何手詰めでも）、その瞬間から詰まされる側のボタンを押せる。早すぎるとお手つき。難易度の設定は使わない<br>
+        <b>【駒の数】</b>少なめはすっきりした局面。多めは駒が20枚以上の実戦風の局面で、読むのに時間がかかるぶん、秒数の基準が1.5倍ゆるくなる
+      </div>
+      <div class="hpage">
+        <h3>▶ 点数</h3>
+        速さのランク（1〜7）がそのまま点数になる<br>
+        <b>【見切り】</b>詰みなしを正しく見抜いたら+3点<br>
+        <b>【連続正解ボーナス】</b>正解が続くと、2連続目は+1点、3連続目は+2点…と増える（6連続目以降は毎回+5点）。お手つきか、誰も答えずに時間切れになると途切れる<br>
+        <b>【お手つき】</b>ひとりは−5点。ふたりは減点なしだが、その局と次の局は答えられない（勘で押すと損をする重さ）
+      </div>
+      <div class="hpage">
       <h3>▶ 駒の見分け方</h3>
       枠の色＝どちらの駒か（<span style="color:#8fd0ff">青＝手前の自分の駒</span>／<span style="color:#ff9aab">赤＝奥の相手の駒</span>）。中の色＝駒の種類。赤い文字は成った駒。
       <div class="legend" id="legend"></div>
+      </div>
+      <div class="hpage">
       <h3>▶ 速さで変わる破壊</h3>
       <table>
-        <tr><td colspan="2">（入門の秒数。初級は2倍、中級は4倍の秒数まで同じランク）</td></tr>
+        <tr><td colspan="2">（入門の秒数。初級は2倍、中級は4倍、上級は6倍の秒数まで同じランク。駒多めはさらに1.5倍）</td></tr>
         <tr><td>0.8秒未満</td><td>地球破壊</td></tr>
         <tr><td>1.6秒未満</td><td>日曜の夕方</td></tr>
         <tr><td>2.5秒未満</td><td>盤を叩き割る</td></tr>
@@ -434,7 +491,12 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
       </table>
       <h3>▶ クレジット</h3>
       地球の写真：NASA Visible Earth（Blue Marble）
+      </div>
     </div>
+    <div class="hnav">
+      <button class="arc-btn c2" id="howPrev">◀</button><span id="howPg"></span><button class="arc-btn c3" id="howNext">▶</button>
+    </div>
+    <div class="menu"><button class="arc-btn c2" id="howtoBack">タイトルへ</button></div>
   </section>
 
   <section id="game" class="hidden">
@@ -462,6 +524,12 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
     <h2 class="goldtext">みんなで対局</h2>
     <div id="lobbyBody" class="plate"></div>
     <div class="menu" id="lobbyBtns"></div>
+  </section>
+
+  <section id="records" class="hidden">
+    <h2 class="goldtext">記録</h2>
+    <div id="recordsBody" class="plate"></div>
+    <div class="menu"><button class="arc-btn c2" id="recordsBack">タイトルへ</button></div>
   </section>
 
   <section id="result" class="hidden">
@@ -494,6 +562,45 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 const KANJI = {K:'玉',R:'飛',B:'角',G:'金',S:'銀',N:'桂',L:'香',P:'歩'};
 const PROMO = {R:'龍',B:'馬',S:'全',N:'圭',L:'杏',P:'と'};
 const RANKS = '一二三四五六七八九';
+// 駒の数：'few'（少なめ・8枚前後）／'many'（多め・20枚前後。勝負に関係ない駒を足して実戦の終盤らしく見せる）
+let PIECE_MODE = 'few';
+// 本物の将棋の枚数（盤上＋持ち駒の合計）
+const PIECE_MAX = {K: 2, R: 2, B: 2, G: 4, S: 4, N: 4, L: 4, P: 18};
+function countPieces(B, H) {
+  const n = {K: 0, R: 0, B: 0, G: 0, S: 0, N: 0, L: 0, P: 0};
+  for (const row of B) for (const p of row) if (p) n[p.t]++;
+  for (const h of H) for (const t in h) n[t] += h[t] || 0;
+  return n;
+}
+function withinPieceMax(B, H) { const n = countPieces(B, H); return Object.keys(PIECE_MAX).every(t => n[t] <= PIECE_MAX[t]); }
+// 多めのとき：守る側の玉から離れた所（2マス以上先）に、両方の歩の列と陣地の駒を足す
+function addFillers(B, H, d, kr, kc, put) {
+  if (PIECE_MODE !== 'many') return;
+  const n = countPieces(B, H);
+  const far = (r, c) => Math.max(Math.abs(r - kr), Math.abs(c - kc)) >= 3;
+  const add = (s, t, r, c) => { if (n[t] >= PIECE_MAX[t] || !far(r, c)) return false; if (put(s, t, false, r, c)) { n[t]++; return true; } return false; };
+  // 攻める側の玉が自陣の奥にいれば、まわりを囲いの形にする（美濃囲い・矢倉囲い）
+  const a = 1 - d, ak = findKing(B, a);
+  if (ak) {
+    const ar = ak.r, ac = ak.c, back = a === 0 ? ar >= 7 : ar <= 1;
+    if (back) {
+      const fw = a === 0 ? -1 : 1, inward = ac >= 4 ? -1 : 1;  // fw：前の向き、inward：盤の中央の向き
+      // [前へ何マス, 中央へ何マス, 駒]
+      const CASTLES = [
+        [[0, 1, 'S'], [-1, 2, 'G'], [0, 3, 'G'], [1, 1, 'P'], [1, 0, 'P'], [1, -1, 'P'], [1, 2, 'P']],   // 美濃囲い
+        [[0, 1, 'G'], [1, 1, 'S'], [1, 2, 'G'], [2, 1, 'P'], [2, 2, 'P'], [1, 0, 'P'], [1, -1, 'P']],    // 矢倉囲い
+      ];
+      for (const [f, i, t] of pick(CASTLES)) add(a, t, ar + fw * f, ac + inward * i);
+    }
+  }
+  for (const s of [0, 1]) {
+    const pawnRow = s === 0 ? 6 : 2;
+    for (let c = 0; c < 9; c++) if (Math.random() < 0.7) add(s, 'P', pawnRow + (Math.random() < 0.25 ? (s === 0 ? -1 : 1) : 0), c);
+    const home = s === 0 ? [6, 7, 8] : [0, 1, 2];
+    for (let k = 2 + rnd(3); k > 0; k--) for (let t = 0; t < 10; t++) if (add(s, pick(['G', 'S', 'N', 'N', 'L', 'L', 'B', 'R']), pick(home), rnd(9))) break;
+  }
+}
+
 const HAND_ORDER = ['R','B','G','S','N','L','P'];
 const GOLD = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,0]];
 const KING = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
@@ -703,6 +810,8 @@ function candidate(kind, side) {
     const c = rnd(9);
     if (Math.abs(c - kc) >= 3) put(s, 'P', false, s === 0 ? 6 : 2, c);
   }
+  addFillers(B, H, d, kr, kc, put);
+  if (!withinPieceMax(B, H)) return null;
   return {B, H, d, a};
 }
 
@@ -951,6 +1060,8 @@ function candidateN(side) {
     const c = rnd(9);
     if (Math.abs(c - kc) >= 3) put(s, 'P', false, s === 0 ? 6 : 2, c);
   }
+  addFillers(B, H, d, kr, kc, put);
+  if (!withinPieceMax(B, H)) return null;
   if (inCheck(B, d) || inCheck(B, a)) return null;
   return {B, H, d, a};
 }
@@ -1080,6 +1191,7 @@ function candidateLive(side) {
   if (!pos) return null;
   // 観戦が盛り上がるよう、攻める側の持ち駒を少し足す
   for (let k = 2 + rnd(2); k > 0; k--) { const t = pick(['G', 'G', 'S', 'S', 'N', 'L', 'B', 'R']); pos.H[pos.a][t] = (pos.H[pos.a][t] || 0) + 1; }
+  if (!withinPieceMax(pos.B, pos.H)) return null;
   if (inCheck(pos.B, pos.d) || inCheck(pos.B, pos.a)) return null;
   return pos;
 }
@@ -1341,8 +1453,10 @@ const RANK_LIMITS = [[7, 800], [6, 1600], [5, 2500], [4, 3500], [3, 5000], [2, 1
 const streakBonus = n => Math.max(0, Math.min(n - 1, 5));
 // 詰みなしを見抜いたときの加点
 const NONE_BONUS = 3;
-function rankOf(ms, level = 'intro') {
-  ms /= LEVEL_FACTOR[level] || 1;
+// 駒多めは読むのに時間がかかるので、秒数の基準を1.5倍にゆるめる
+const PIECE_FACTOR = {few: 1, many: 1.5};
+function rankOf(ms, level = 'intro', pieces = PIECE_MODE) {
+  ms /= (LEVEL_FACTOR[level] || 1) * (PIECE_FACTOR[pieces] || 1);
   for (const [rank, lim] of RANK_LIMITS) if (ms < lim) return rank;
   return 1;
 }
@@ -1408,9 +1522,10 @@ function startGame(mode) {
   G.buttons = +$('optButtons').value;
   G.level = $('optLevel').value;
   G.format = $('optFormat').value;
+  PIECE_MODE = $('optPieces').value;
   buildPads();
   G.q = 0; G.scores = [0, 0]; G.times = [[], []]; G.rest = [0, 0]; G.streak = [0, 0];
-  $('title').classList.add('hidden'); $('result').classList.add('hidden'); $('game').classList.remove('hidden');
+  showScreen('game');
   $('pad1').classList.toggle('hidden', mode !== 'duo');
   updateScores();
   layout();
@@ -1443,6 +1558,7 @@ async function nextRound() {
   curtain.innerHTML = `<div class="st goldtext">第${G.q}局</div><div class="rd">${G.q === G.total ? '最終局' : '対局開始'}</div>`;
   curtain.classList.remove('hidden');
   const btns = +$('optButtons').value, lv = $('optLevel').value, fm = $('optFormat').value;
+  PIECE_MODE = $('optPieces').value;  // 駒の数は次の局から
   if (btns !== G.buttons || lv !== G.level || fm !== G.format) { G.buttons = btns; G.level = lv; G.format = fm; buildPads(); updateScores(); }
   if (G.format === 'live') return startLive(curtain);
   G.pos = await makeQuestion();
@@ -1481,7 +1597,7 @@ function getLiveWorker() {
   if (liveWorker) return liveWorker;
   const src = [...document.scripts].map(s => s.textContent).find(t => t.includes('// ==ENGINE START=='));
   const engine = src.slice(src.indexOf('// ==ENGINE START=='), src.indexOf('// ==ENGINE END=='));
-  const code = engine + '\nonmessage = e => { const d = e.data; postMessage({id: d.id, game: d.type === "puzzle" ? generateN(d.level, d.kind, d.side) : simulateLive(d.side, d.preferLong)}); };';
+  const code = engine + '\nonmessage = e => { const d = e.data; PIECE_MODE = d.pieces || "few"; postMessage({id: d.id, game: d.type === "puzzle" ? generateN(d.level, d.kind, d.side) : simulateLive(d.side, d.preferLong)}); };';
   liveWorker = new Worker(URL.createObjectURL(new Blob([code], {type: 'text/javascript'})));
   return liveWorker;
 }
@@ -1492,7 +1608,7 @@ function requestGame(side, preferLong = false) {
       const h = e => { if (e.data.id === id) { w.removeEventListener('message', h); res(e.data.game); } };
       w.addEventListener('message', h);
       w.addEventListener('error', () => res(simulateLive(side, preferLong)), {once: true});
-      w.postMessage({id, side, preferLong});
+      w.postMessage({id, side, preferLong, pieces: PIECE_MODE});
     } catch (e) { res(simulateLive(side, preferLong)); }  // Worker が使えない環境では画面側で計算する
   });
 }
@@ -1502,13 +1618,13 @@ function requestPuzzle(level, kind, side) {
       const w = getLiveWorker(), id = Math.random();
       const h = e => { if (e.data.id === id) { w.removeEventListener('message', h); res(e.data.game); } };
       w.addEventListener('message', h);
-      w.postMessage({id, type: 'puzzle', level, kind, side});
+      w.postMessage({id, type: 'puzzle', level, kind, side, pieces: PIECE_MODE});
     } catch (e) { res(generateN(level, kind, side)); }
   });
 }
 // 上級の問題の作り置き：詰みあり2問・詰みなし1問をためておく
 function fillPuzzleStock(side) {
-  const key = String(side);
+  const key = `${side}|${PIECE_MODE}`;
   if (!G.p5 || G.p5.key !== key) G.p5 = {key, mate: [], trick: [], pend: {mate: 0, trick: 0}};
   const Q = G.p5;
   for (const [kind, n] of [['mate', 2], ['trick', 1]]) while (Q[kind].length + Q.pend[kind] < n) {
@@ -1530,7 +1646,7 @@ async function takePuzzle5(side, kind) {
 // 対局の作り置き：常に3局先までためておく（観戦中・解説中・演出中も裏で作り足す）
 const LIVE_STOCK = 3;
 function fillLiveStock(side) {
-  const key = String(side);
+  const key = `${side}|${PIECE_MODE}`;
   if (!G.liveQ || G.liveQ.key !== key) G.liveQ = {key, ready: [], pending: 0, waiters: []};
   const Q = G.liveQ;
   while (Q.ready.length + Q.pending < LIVE_STOCK) {
@@ -1706,10 +1822,10 @@ async function finishRound(win, missed) {
       await callCutin(win.player, win.call || callText(win.player), !!win.call);
       await hitStop();
       await RANK_INFO[rank].fn();
-      await banner(RANK_INFO[rank].name, (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${(win.rt / 1000).toFixed(2)}秒` + (G.format === 'live' ? 'で発見' : '') + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText, 1500, rank, `ランク${rank}`);
+      await banner(RANK_INFO[rank].name, `<b class="plus">+${rank + bonus}点</b><br>` + (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${(win.rt / 1000).toFixed(2)}秒` + (G.format === 'live' ? 'で発見' : '') + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText, 1500, rank, `ランク${rank}`);
       await rewind();
     } else {
-      await mikiri(`${(win.rt / 1000).toFixed(2)}秒` + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText);
+      await mikiri(`${(win.rt / 1000).toFixed(2)}秒` + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText, rank + bonus + noneBonus);
     }
   } else {
     if (!missed) { G.streak = G.streak.map(() => 0); updateScores(); }  // 誰も答えずに時間切れなら、全員の連続が途切れる
@@ -1720,10 +1836,10 @@ async function finishRound(win, missed) {
   await explain();
 }
 
-function highKey(format, level, total) { return `${format}|${format === 'live' ? '-' : level}|${total}`; }
-function highLabel(format, level, total) {
+function highKey(format, level, total, pieces = PIECE_MODE) { return `${format}|${format === 'live' ? '-' : level}|${total}` + (pieces === 'many' ? '|many' : ''); }
+function highLabel(format, level, total, pieces = PIECE_MODE) {
   const lv = {intro: '入門', 1: '初級', 3: '中級', 5: '上級'}[level];
-  return format === 'live' ? `リアル対局リセット・${total}局` : `詰め将棋 ${lv}・${total}問`;
+  return (format === 'live' ? `リアル対局リセット・${total}局` : `詰め将棋 ${lv}・${total}問`) + (pieces === 'many' ? '・駒多め' : '');
 }
 function loadHighs() { const h = load('highscores', {}); return h && typeof h === 'object' ? h : {}; }
 // 今回の結果を記録して、順位（1〜5、圏外は 0）を返す
@@ -1744,9 +1860,9 @@ function highTable(key, mark) {
     `<tr class="${e.t === mark ? 'me' : ''}"><td>${i + 1}位</td><td>${e.score}点</td><td>${e.avg ?? '—'}</td><td>${e.date}</td></tr>`).join('') + '</table>';
 }
 function updateTitleHigh() {
-  const fmt = $('optFormat').value, lv = $('optLevel').value, total = +$('optCount').value;
-  const list = loadHighs()[highKey(fmt, lv, total)] || [];
-  $('highRecord').innerHTML = `ハイスコア（${highLabel(fmt, lv, total)}）　` + (list.length ? `<b>${list[0].score}点</b>` : 'まだ記録なし');
+  const fmt = $('optFormat').value, lv = $('optLevel').value, total = +$('optCount').value, pc = $('optPieces').value;
+  const list = loadHighs()[highKey(fmt, lv, total, pc)] || [];
+  $('highRecord').innerHTML = `ハイスコア（${highLabel(fmt, lv, total, pc)}）　` + (list.length ? `<b>${list[0].score}点</b>` : 'まだ記録なし');
 }
 function showResult() {
   $('game').classList.add('hidden'); $('result').classList.remove('hidden');
@@ -1768,20 +1884,57 @@ function showResult() {
   const b = Math.min(...[0, 1].map(i => best(G.times[i]) ?? Infinity));
   if (isFinite(b)) {
     const lvKey = G.format === 'live' ? 'live' : G.level;
-    const key = lvKey === 'intro' ? 'best-ms' : 'best-ms-' + lvKey;
+    const key = (lvKey === 'intro' ? 'best-ms' : 'best-ms-' + lvKey) + (PIECE_MODE === 'many' ? '-many' : '');
     const rec = load(key, null);
     if (rec == null || b < rec) { save(key, b); html += `<br><b style="color:#ffe27a">最速記録更新！ ${(b / 1000).toFixed(2)}秒</b>`; }
     else html += `<br>今回の最速 ${(b / 1000).toFixed(2)}秒`;
   }
   $('resultBody').innerHTML = html;
 }
-function showTitle() {
-  $('game').classList.add('hidden'); $('result').classList.add('hidden'); $('title').classList.remove('hidden');
-  const recs = [['入門', 'best-ms', 'intro'], ['初級', 'best-ms-1', '1'], ['中級', 'best-ms-3', '3'], ['上級', 'best-ms-5', '5'], ['リアル対局リセット', 'best-ms-live', 'intro']]
-    .map(([name, key, lv]) => { const r = load(key, null); return r == null ? null : `${name} ${(r / 1000).toFixed(2)}秒（${RANK_INFO[rankOf(r, lv)].name.replace(/！/g, '')}）`; })
-    .filter(Boolean);
-  $('bestRecord').innerHTML = recs.length ? '最速記録　' + recs.join('<br>') : '';
+// 記録の画面：ハイスコア（モード・難易度・問題数ごとの上位5件）と最速記録
+function showScreen(id) { ['title', 'setup', 'howto', 'records', 'game', 'result', 'lobby'].forEach(x => $(x).classList.toggle('hidden', x !== id)); }
+function showRecords() {
+  showScreen('records');
+  const highs = loadHighs();
+  const order = [];
+  for (const pc of ['few', 'many']) for (const fmt of ['quiz', 'live']) for (const lv of fmt === 'live' ? ['intro'] : ['intro', '1', '3', '5']) for (const n of [5, 10, 20]) {
+    const key = highKey(fmt, lv, n, pc);
+    if (highs[key] && highs[key].length) order.push([key, highLabel(fmt, lv, n, pc)]);
+  }
+  let html = '<h3>ハイスコア</h3>';
+  html += order.length ? order.map(([key, label]) => `<div class="rec-group"><div class="rec-label">${label}</div>${highTable(key, null)}</div>`).join('')
+    : `<p class="rec-empty">${phraseHTML('まだ記録がありません。|ひとりで対局すると|記録されます')}</p>`;
+  const fast = [];
+  for (const pc of ['few', 'many']) for (const [name, key, lv] of [['入門', 'best-ms', 'intro'], ['初級', 'best-ms-1', '1'], ['中級', 'best-ms-3', '3'], ['上級', 'best-ms-5', '5'], ['リアル対局リセット', 'best-ms-live', 'intro']]) {
+    const r = load(key + (pc === 'many' ? '-many' : ''), null);
+    if (r != null) fast.push(`<tr><td>${name}${pc === 'many' ? '・駒多め' : ''}</td><td>${(r / 1000).toFixed(2)}秒</td><td>${RANK_INFO[rankOf(r, lv, pc)].name.replace(/！/g, '')}</td></tr>`);
+  }
+  html += '<h3>最速記録</h3>' + (fast.length ? `<table class="high-table">${fast.join('')}</table>` : '<p class="rec-empty">まだ記録がありません</p>');
+  $('recordsBody').innerHTML = html;
+}
+function showTitle() { showScreen('title'); }
+// 対局の設定画面（前回の設定がそのまま入っている）。mode: solo / duo / sync（みんなで対局のホスト）
+let setupMode = 'solo';
+function showSetup(mode) {
+  setupMode = mode;
+  showScreen('setup');
+  $('setupTitle').textContent = {solo: 'ひとりで対局', duo: 'ふたりで対局', sync: 'みんなで対局'}[mode];
+  $('setupStart').textContent = mode === 'sync' ? '部屋を作る' : '開始';
+  // 2P の決め台詞はふたりで対局のときだけ。ハイスコアはひとりのときだけ記録される
+  document.querySelector('.call-row[data-p="1"]').classList.toggle('hidden', mode !== 'duo');
+  $('highRecord').classList.toggle('hidden', mode !== 'solo');
   updateTitleHigh();
+}
+// 遊び方（ページめくり）
+let howIdx = 0;
+function showHowto(i) {
+  const pages = document.querySelectorAll('.hpage');
+  howIdx = Math.max(0, Math.min(pages.length - 1, i));
+  pages.forEach((pg, k) => pg.classList.toggle('on', k === howIdx));
+  $('howPg').textContent = `${howIdx + 1} / ${pages.length}`;
+  $('howPrev').disabled = howIdx === 0;
+  $('howNext').disabled = howIdx === pages.length - 1;
+  $('howtoBody').scrollTop = 0;
 }
 
 // ---------- 演出の部品 ----------
@@ -1872,7 +2025,8 @@ function mark(r, c, cls) { sqEl(r, c).classList.add(cls); }
 const caption = t => { $('caption').innerHTML = t; };
 
 // 詰みなしを見抜いたとき：刃の光が盤を斜めに走り「見切った！ +3」
-async function mikiri(sub) {
+// pts：この問題で入った点数（ランク＋連続正解ボーナス＋見切りの加点）
+async function mikiri(sub, pts) {
   const br = boardEl.getBoundingClientRect();
   const slash = document.createElement('div'); slash.className = 'slash';
   Object.assign(slash.style, {left: br.left - br.width * 0.08 + 'px', top: br.top + br.height * 0.8 + 'px', width: br.width * 1.25 + 'px'});  // 左下から右上へ
@@ -1881,7 +2035,7 @@ async function mikiri(sub) {
   await anim(slash, [{transform: 'rotate(-28deg) scaleX(0)', opacity: 1, transformOrigin: '0 50%'}, {transform: 'rotate(-28deg) scaleX(1)', opacity: 1, transformOrigin: '0 50%'}], {duration: 140, easing: 'ease-out'});
   flash('#fff', 160); shake(200, 8);
   anim(slash, [{opacity: 1}, {opacity: 0}], 400).then(() => slash.remove());
-  await banner('見切った！', `<b class="plus">+${NONE_BONUS}</b><br>` + sub, 1200, 5, '詰みなし');
+  await banner('見切った！', `<b class="plus">+${pts}点</b><br>見切り +${NONE_BONUS}　` + sub, 1200, 5, '詰みなし');
 }
 // ---------- 飛び散り物理 ----------
 const particles = [];
@@ -2830,6 +2984,10 @@ function initCalls() {
   const bgmSel = $('optBgm');
   bgmSel.value = String(Math.round(BGM.volume * 100)); if (!bgmSel.value) bgmSel.value = '50';
   bgmSel.addEventListener('change', () => BGM.setVolume(+bgmSel.value / 100));
+  const pcs = $('optPieces');
+  pcs.value = load('pieces', 'few'); if (!pcs.value) pcs.value = 'few';
+  PIECE_MODE = pcs.value;
+  pcs.addEventListener('change', () => { save('pieces', pcs.value); PIECE_MODE = pcs.value; });
   const lim = $('optLimit'), btns = $('optButtons');
   btns.value = String(load('buttons', 2)); if (!btns.value) btns.value = '2';  // 初めて開いたときは2ボタン（シンプルなので）
   const fmt = $('optFormat');
@@ -2849,8 +3007,8 @@ function initCalls() {
     if (fmt.value === 'live') fillLiveStock(side);
     else if ($('optLevel').value === '5') fillPuzzleStock(side);
   };
-  fmt.addEventListener('change', warmLive); btns.addEventListener('change', warmLive); $('optLevel').addEventListener('change', warmLive);
-  ['optFormat', 'optLevel', 'optCount'].forEach(id => $(id).addEventListener('change', updateTitleHigh));
+  fmt.addEventListener('change', warmLive); btns.addEventListener('change', warmLive); $('optLevel').addEventListener('change', warmLive); pcs.addEventListener('change', warmLive);
+  ['optFormat', 'optLevel', 'optCount', 'optPieces'].forEach(id => $(id).addEventListener('change', updateTitleHigh));
   warmLive();
   const lvSel = $('optLevel');
   lvSel.value = String(load('level', 'intro')); if (!lvSel.value) lvSel.value = 'intro';
@@ -3442,20 +3600,19 @@ function myName() { return (load('sync-name', '') || '').trim() || '名無し'; 
 
 // ---- ロビーの画面 ----
 function showLobby(view, msg) {
-  ['title', 'game', 'result'].forEach(id => $(id).classList.add('hidden'));
-  $('lobby').classList.remove('hidden');
+  showScreen('lobby');
   const body = $('lobbyBody'), btns = $('lobbyBtns');
   if (view === 'entry') {
     const code = new URLSearchParams(location.search).get('room') || '';
     body.innerHTML = `<label class="lb-row">なまえ<input id="syncName" maxlength="8" placeholder="8文字まで"></label>
-      <p class="lb-note">部屋を作る人（ホスト）は、タイトル画面で選んだモード・難易度・問題数で遊びます。最大${SYNC_MAX}人。</p>
+      <p class="lb-note">部屋を作る人（ホスト）は、次の画面で選んだモード・難易度・問題数で遊びます。最大${SYNC_MAX}人。</p>
       <label class="lb-row">部屋番号<input id="syncCode" maxlength="4" placeholder="例: AB3K" style="text-transform:uppercase"></label>
       ${msg ? `<p class="lb-err">${esc(msg)}</p>` : ''}`;
     $('syncName').value = load('sync-name', '');
     $('syncCode').value = code;
     btns.innerHTML = `<button class="arc-btn c3" id="lbCreate">部屋を作る（ホスト）</button><button class="arc-btn c1" id="lbJoin">番号の部屋に入る</button><button class="arc-btn c2" id="lbBack">タイトルへ</button>`;
     const keepName = () => save('sync-name', $('syncName').value.trim());
-    $('lbCreate').onclick = () => { keepName(); syncCreateRoom(); };
+    $('lbCreate').onclick = () => { keepName(); sfx('tap'); showSetup('sync'); };
     $('lbJoin').onclick = () => { keepName(); const c = $('syncCode').value.trim().toUpperCase(); if (c.length === 4) syncJoin(c); else showLobby('entry', '4文字の部屋番号を入れてください'); };
     $('lbBack').onclick = () => leaveRoom();
   } else if (view === 'wait') {
@@ -3490,7 +3647,7 @@ function renderRoom() {
 }
 const PLAYER_COLORS = ['#2c5cd8', '#d8283c', '#2c9c48', '#c88c18', '#8c48c8', '#289ca8'];
 function readSettings() {
-  return {format: $('optFormat').value, level: $('optLevel').value, count: +$('optCount').value, buttons: +$('optButtons').value, limit: +$('optLimit').value * 1000};
+  return {pieces: $('optPieces').value, format: $('optFormat').value, level: $('optLevel').value, count: +$('optCount').value, buttons: +$('optButtons').value, limit: +$('optLimit').value * 1000};
 }
 function syncSettingsLabel(st) {
   const lv = {intro: '入門', 1: '初級', 3: '中級', 5: '上級'}[st.level];
@@ -3707,6 +3864,7 @@ function syncHandle(d) {
 function syncStartGame(d) {
   setTimeout(warmEarth, 200);
   const st = d.st;
+  PIECE_MODE = st.pieces || 'few';
   G.mode = 'sync'; G.format = st.format; G.level = st.level; G.total = st.count; G.buttons = st.buttons; G.limit = st.limit;
   const n = d.players.length;
   G.q = 0; G.streak = Array(n).fill(0); G.scores = Array(n).fill(0); G.times = Array.from({length: n}, () => []); G.rest = Array(n).fill(0); G.locked = Array(n).fill(false);
@@ -3844,9 +4002,9 @@ async function syncFinish(d) {
       await syncCallCutin(w.idx, w.call || '詰んだ！', mine);
       await hitStop();
       await RANK_INFO[w.rank].fn();
-      await banner(RANK_INFO[w.rank].name, sub, 1500, w.rank, `ランク${w.rank}`);
+      await banner(RANK_INFO[w.rank].name, `<b class="plus">+${w.rank + (w.bonus || 0)}点</b><br>` + sub, 1500, w.rank, `ランク${w.rank}`);
       await rewind();
-    } else await mikiri(sub);
+    } else await mikiri(sub, w.rank + (w.bonus || 0) + NONE_BONUS);
   } else {
     sfx('wrong');
     const ansText = (G.buttons === 2 ? CHOICES_TWO : CHOICES).concat(CHOICES).find(c => c[0] === pos.answer)[1];
@@ -3894,7 +4052,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.9';
+const APP_VERSION = 'v1.0.10';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
@@ -3903,7 +4061,23 @@ function initLabels() {
   $('files').innerHTML = [9, 8, 7, 6, 5, 4, 3, 2, 1].map(n => `<div>${n}</div>`).join('');
   $('ranks').innerHTML = [...RANKS].map(n => `<div>${n}</div>`).join('');
 }
-document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => startGame(b.dataset.mode)));
+document.querySelectorAll('[data-setup]').forEach(b => b.addEventListener('click', () => { sfx('tap'); showSetup(b.dataset.setup); }));
+$('setupStart').addEventListener('click', () => { if (setupMode === 'sync') syncCreateRoom(); else startGame(setupMode); });
+$('setupBack').addEventListener('click', () => { sfx('tap'); if (setupMode === 'sync') showLobby('entry'); else showTitle(); });
+$('howtoBtn').addEventListener('click', () => { sfx('tap'); showScreen('howto'); showHowto(0); });
+$('howPrev').addEventListener('click', () => { sfx('tap'); showHowto(howIdx - 1); });
+$('howNext').addEventListener('click', () => { sfx('tap'); showHowto(howIdx + 1); });
+$('howtoBack').addEventListener('click', () => { sfx('tap'); showTitle(); });
+// 遊び方は左右のスワイプでもめくれる
+{
+  let sx = null, sy = 0;
+  $('howtoBody').addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; });
+  $('howtoBody').addEventListener('pointerup', e => {
+    if (sx == null) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy; sx = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) showHowto(howIdx + (dx < 0 ? 1 : -1));
+  });
+}
 $('prevPg').addEventListener('click', () => { sfx('tap'); if (EXP) gotoPage(EXP.idx - 1); });
 $('nextPg').addEventListener('click', () => {
   if (!EXP || EXP.busy) return;
@@ -3916,9 +4090,11 @@ $('skipBtn').addEventListener('click', () => { if (EXP && !EXP.busy) { sfx('tap'
 $('againBtn').addEventListener('click', () => { if (S.peer) syncAgain(); else startGame(G.mode); });
 $('syncBtn').addEventListener('click', () => { synth.unlock(); preload3D(); showLobby('entry'); });
 $('toTitleBtn').addEventListener('click', () => { if (S.peer) leaveRoom(); else showTitle(); });
+$('recordsBtn').addEventListener('click', () => { sfx('tap'); showRecords(); });
+$('recordsBack').addEventListener('click', () => { sfx('tap'); showTitle(); });
 // 演出の途中でも確実に止められるよう、読み込み直してタイトルへ戻る（設定は保存済み）
 // ---------- ゲーム中の設定画面（タイトルの設定部品をそのまま移して使う） ----------
-const SET_PARTS = ['lblFormat', 'lblLevel', 'lblButtons', 'lblLimit', 'lblBgm', 'callsPanel'];
+const SET_PARTS = ['lblFormat', 'lblLevel', 'lblButtons', 'lblPieces', 'lblLimit', 'lblBgm', 'callsPanel'];
 let setHome = null;
 function openSettings() {
   // 出題中なら一時停止して盤面を隠す（みんなで対局はほかの人が続けるので止めない）
