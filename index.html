@@ -357,6 +357,8 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 .lb-pending button[data-ok="0"]{background:#8c1424}
 /* 影の多い大きな文字を拡大・縮小するときは、一度絵にしてから動かす（毎コマ描き直すと止まる） */
 .call-text,.banner .main,.burst,.stamp,.bang{will-change:transform,opacity}
+#qno .xm{color:#ff5a6a}#qno .xo{color:#6a6a7a}
+.banner .gain{display:inline-block;font-size:26px;color:#8ff0a0;text-shadow:-2px 0 0 #08080c,2px 0 0 #08080c,0 -2px 0 #08080c,0 2px 0 #08080c}
 .banner .plus{display:inline-block;font-size:40px;color:var(--gold);text-shadow:-3px 0 0 #08080c,3px 0 0 #08080c,0 -3px 0 #08080c,0 3px 0 #08080c,4px 4px 0 #b81c30;margin:2px 0}
 .slash{position:fixed;height:10px;margin-top:-5px;z-index:57;pointer-events:none;background:#fff;box-shadow:0 0 0 3px #08080c,0 0 18px #9ce0ff}
 #records{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:safe center;gap:16px;padding:20px;text-align:center;overflow-y:auto;scrollbar-width:none}
@@ -417,9 +419,9 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
     <h2 class="goldtext" id="setupTitle"></h2>
     <div class="opt-row">
       <label id="lblFormat">モード
-        <select id="optFormat"><option value="quiz">詰め将棋</option><option value="live">リアル対局リセット</option></select>
+        <select id="optFormat"><option value="quiz">詰め将棋</option><option value="live">リアル対局リセット</option><option value="attack">スコアアタック</option></select>
       </label>
-      <label><span id="countLabel">問題数</span>
+      <label id="lblCount"><span id="countLabel">問題数</span>
         <select id="optCount"><option value="5">5問</option><option value="10" selected>10問</option><option value="20">20問</option></select>
       </label>
       <label id="lblLevel">難易度
@@ -433,6 +435,9 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
       </label>
       <label id="lblPieces">駒の数
         <select id="optPieces"><option value="few">少なめ（すっきり）</option><option value="many">多め（実戦風）</option></select>
+      </label>
+      <label id="lblFx">演出
+        <select id="optFx"><option value="full">フル（盤を壊す）</option><option value="short">短め（すぐ次へ）</option></select>
       </label>
       <label id="lblLimit">制限時間
         <select id="optLimit"><option value="5">5秒</option><option value="10">10秒</option><option value="20">20秒</option><option value="30">30秒</option><option value="0">なし</option></select>
@@ -483,11 +488,25 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
         <p>初級から上級は、<span class="phr">攻める側の番として考える。</span><span class="phr">王手を続けて詰ませる、</span><span class="phr">ふつうの詰将棋のルール。</span></p>
         <h3>▶ リアル対局リセット</h3>
         <p>CPUどうしが<span class="phr">1手ずつ指していく。</span><span class="phr">どちらかの王が詰んだら</span><span class="phr">（何手詰めでも）、</span><span class="phr">その瞬間から押せる。</span><span class="phr">早すぎるとお手つき。</span></p>
-        <h3>▶ 駒の数</h3>
+        <h3>▶ 演出・駒の数</h3>
+        <ul class="hl">
+          <li>・<b>演出 短め</b>：<span class="phr">盤を壊す演出をとばして、</span><span class="phr">すぐ次の問題へ</span></li>
+        </ul>
         <ul class="hl">
           <li>・<b>少なめ</b>：<span class="phr">すっきりした局面</span></li>
           <li>・<b>多め</b>：<span class="phr">実戦風の局面。</span><span class="phr">読むのに時間がかかるので、</span><span class="phr">秒数の基準が1.5倍ゆるい</span></li>
         </ul>
+      </div>
+      <div class="hpage">
+        <h3>▶ スコアアタック</h3>
+        <p>ひとりで対局のときだけ選べる。<span class="phr">問題数の決まりはなく、</span><span class="phr">持ち時間がなくなるか、</span><span class="phr">×が3つつくまで続く。</span></p>
+        <ul class="hl">
+          <li>・<b>持ち時間</b>：<span class="phr">60秒から始まる。</span><span class="phr">考えているあいだだけ減る</span></li>
+          <li>・<b>正解</b>：<span class="phr">点数に加えて、</span><span class="phr">速さに応じて持ち時間が増える</span><span class="phr">（地球破壊+3秒、</span><span class="phr">日曜の夕方+2秒、</span><span class="phr">盤を叩き割る+1秒）</span></li>
+          <li>・<b>ミス</b>：<span class="phr">持ち時間−5秒で、</span><span class="phr">×が1つつく。</span><span class="phr">点数は減らない</span></li>
+        </ul>
+        <p>解説は出さずに、<span class="phr">すぐ次の問題へ進む。</span><span class="phr">演出を「短め」にすると、</span><span class="phr">盤を壊す演出もとばして</span><span class="phr">さらにテンポよく進む。</span></p>
+        <p>初級以上と駒多めは、<span class="phr">秒数がすべて同じ倍率で増える</span><span class="phr">（上級なら持ち時間360秒）。</span><span class="phr">得点と正解数は、</span><span class="phr">それぞれ記録される。</span></p>
       </div>
       <div class="hpage">
         <h3>▶ 点数</h3>
@@ -575,7 +594,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
   <div class="set-panel plate">
     <h3 class="goldtext">設定</h3>
     <div id="setBody"></div>
-    <div class="set-note">モード・ボタン数・難易度は、次の局から変わります。</div>
+    <div class="set-note" id="setNote">モード・ボタン数・難易度は、次の局から変わります。</div>
     <div class="set-btns">
       <button class="arc-btn c1" id="setClose">対局に戻る</button>
       <button class="arc-btn c2" id="setTitle">タイトルに戻る</button>
@@ -1493,6 +1512,17 @@ const RANK_LIMITS = [[7, 800], [6, 1600], [5, 2500], [4, 3500], [3, 5000], [2, 1
 const streakBonus = n => Math.max(0, Math.min(n - 1, 5));
 // 詰みなしを見抜いたときの加点
 const NONE_BONUS = 3;
+// 演出「短め」：盤を壊す演出・決め台詞のカットイン・お手つきの薙ぎ払いをとばし、結果だけ短く出す
+const fxShort = () => $('optFx').value === 'short';
+// スコアアタック（入門・駒少なめの秒数。難易度と駒の数の倍率をかけて使う）
+// 持ち時間60秒。正解でランク7は+3秒・6は+2秒・5は+1秒。外すと−5秒で×1つ。×3つか持ち時間切れで終わり
+const ATTACK = {start: 60000, penalty: 5000, gain: {7: 3000, 6: 2000, 5: 1000}, maxMiss: 3};
+const attackFactor = () => (LEVEL_FACTOR[G.level] || 1) * (PIECE_FACTOR[G.attackPieces] || 1);
+function attackHUD() {
+  const marks = Array.from({length: ATTACK.maxMiss}, (_, i) => i < G.miss ? '<b class="xm">×</b>' : '<b class="xo">・</b>').join('');
+  $('qno').innerHTML = `${G.q}問目 ${marks}`;
+}
+function attackTimerText(ms) { return `残り${(ms / 1000).toFixed(1)}秒`; }
 // 駒多めは読むのに時間がかかるので、秒数の基準を1.5倍にゆるめる
 const PIECE_FACTOR = {few: 1, many: 1.5};
 function rankOf(ms, level = 'intro', pieces = PIECE_MODE) {
@@ -1547,7 +1577,7 @@ function renderBoard() {
   }
   for (const s of [0, 1]) {
     const items = HAND_ORDER.filter(t => H[s][t] > 0).map(t => pieceHTML({t, p: false, s}) + (H[s][t] > 1 ? `<span class="cnt">×${H[s][t]}</span>` : '')).join('');
-    $('hand' + s).innerHTML = `<span class="lbl s${s}">${s === 0 ? '自分' : '相手'}の持ち駒</span>${items || '<span class="lbl">なし</span>'}`;
+    $('hand' + s).innerHTML = `<span class="lbl s${s}">${G.mode === 'duo' ? PLAYER_NAMES[s] : s === 0 ? '自分' : '相手'}の持ち駒</span>${items || '<span class="lbl">なし</span>'}`;
   }
   $('lastMove').innerHTML = last ? `直前の手：<b>${last.text}</b>` : (G.pos.prompt || '');
   fxSvg.innerHTML = '';
@@ -1567,6 +1597,10 @@ function startGame(mode) {
   G.level = $('optLevel').value;
   G.format = $('optFormat').value;
   PIECE_MODE = $('optPieces').value;
+  // スコアアタック：問題の出し方は詰め将棋と同じで、持ち時間と×の数で終わる
+  G.attack = G.format === 'attack' && mode === 'solo';
+  if (G.format === 'attack') G.format = 'quiz';
+  if (G.attack) { G.total = Infinity; G.limit = 0; G.attackPieces = PIECE_MODE; G.clock = ATTACK.start * attackFactor(); G.miss = 0; G.endReason = null; }
   buildPads();
   G.q = 0; G.scores = [0, 0]; G.times = [[], []]; G.rest = [0, 0]; G.streak = [0, 0];
   showScreen('game');
@@ -1581,6 +1615,7 @@ async function nextRound() {
   endExplain();
   clearFx();
   if (G.q >= G.total) return showResult();
+  if (G.attack && (G.miss >= ATTACK.maxMiss || G.clock <= 0)) return showResult();
   G.q++;
   G.locked = [false, false];
   setPads('locked', false); setPads('disabled', true);
@@ -1598,16 +1633,21 @@ async function nextRound() {
   $('caption').textContent = '';
   $('qno').textContent = `第${G.q}局／全${G.total}局`;
   $('timer').textContent = '0.00秒' + limitText();
+  if (G.attack) { attackHUD(); $('timer').textContent = attackTimerText(G.clock); }
   const curtain = $('curtain');
-  curtain.innerHTML = `<div class="st goldtext">第${G.q}局</div><div class="rd">${G.q === G.total ? '最終局' : '対局開始'}</div>`;
+  curtain.innerHTML = G.attack ? `<div class="st goldtext">${G.q}問目</div><div class="rd">${attackTimerText(G.clock)}</div>`
+    : `<div class="st goldtext">第${G.q}局</div><div class="rd">${G.q === G.total ? '最終局' : '対局開始'}</div>`;
   curtain.classList.remove('hidden');
-  const btns = +$('optButtons').value, lv = $('optLevel').value, fm = $('optFormat').value;
-  PIECE_MODE = $('optPieces').value;  // 駒の数は次の局から
-  if (btns !== G.buttons || lv !== G.level || fm !== G.format) { G.buttons = btns; G.level = lv; G.format = fm; buildPads(); updateScores(); }
+  if (G.attack) PIECE_MODE = G.attackPieces;  // スコアアタックの途中では設定を変えない（記録の条件がそろわなくなるため）
+  else {
+    const btns = +$('optButtons').value, lv = $('optLevel').value, fm = $('optFormat').value;
+    PIECE_MODE = $('optPieces').value;  // 駒の数は次の局から
+    if (fm !== 'attack' && (btns !== G.buttons || lv !== G.level || fm !== G.format)) { G.buttons = btns; G.level = lv; G.format = fm; buildPads(); updateScores(); }
+  }
   if (G.format === 'live') return startLive(curtain);
   G.pos = await makeQuestion();
   renderBoard();
-  await wait(900);
+  await wait(fxShort() ? 500 : 900);
   curtain.classList.add('hidden');
   // 盤面が実際に描かれたタイミングから計測する
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -1781,6 +1821,12 @@ function tickTimer() {
   if (!G.active && !(G.mode === 'sync' && !G.syncRoundOver)) return;
   const el = performance.now() - G.t0;
   $('timer').textContent = (el / 1000).toFixed(2) + '秒' + limitText();
+  if (G.attack) {
+    $('timer').textContent = attackTimerText(G.clock - el);
+    if (el >= G.clock) { G.active = false; G.clock = 0; G.endReason = 'time'; finishRound(null); return; }
+    requestAnimationFrame(tickTimer);
+    return;
+  }
   if (G.mode === 'sync') {
     // みんなで対局：時間切れの判定はホストだけが行い、全員に知らせる
     if (S.host && S.round && !S.round.decided && !S.round.closing) {
@@ -1815,10 +1861,17 @@ function press(player, choice, ts) {
     G.locked[player] = true;
     // ひとりは−5点、ふたりは次の局が休み。どちらも連続正解は途切れる
     G.streak[player] = 0;
-    if (G.mode === 'duo') G.rest[player] = 1; else G.scores[player] -= 5;
+    if (G.attack) {
+      // スコアアタック：点は引かず、持ち時間を減らして×を1つ
+      G.clock = Math.max(0, G.clock - rt - ATTACK.penalty * attackFactor());
+      G.miss++;
+      if (G.miss >= ATTACK.maxMiss) G.endReason = 'miss'; else if (G.clock <= 0) G.endReason = 'time';
+      attackHUD();
+      $('timer').textContent = attackTimerText(G.clock);
+    } else if (G.mode === 'duo') G.rest[player] = 1; else G.scores[player] -= 5;
     updateScores();
     $('pad' + player).classList.add('locked');
-    padMsg(player, G.mode === 'duo' ? 'お手つき！次の局は休み' : 'お手つき！ −5点');
+    padMsg(player, G.attack ? `ミス！ −${ATTACK.penalty * attackFactor() / 1000}秒` : G.mode === 'duo' ? 'お手つき！次の局は休み' : 'お手つき！ −5点');
     const players = G.mode === 'duo' ? [0, 1] : [0];
     // 2ボタンの詰め将棋は、お手つきが出たら残りが1択になるので、その局はそこで終わり
     const allOut = foulEndsRound() || players.every(i => G.locked[i]);
@@ -1829,8 +1882,8 @@ function press(player, choice, ts) {
     if (L) L.paused = true;
     (async () => {
       if (L && L.moving) await L.moving;  // 指している途中の駒の動きが終わってから
-      await destroy1();
-      await donbiki(player);
+      if (fxShort()) { shake(250, 8); await wait(400); }
+      else { await destroy1(); await donbiki(player); }
       if (allOut) {
         // 全員お手つき。観戦なら、最後まで進めた詰みの局面で答え合わせをする
         if (L) { L.paused = false; endLive(L, null, true); } else finishRound(null, true);
@@ -1858,33 +1911,42 @@ async function finishRound(win, missed) {
     const noneBonus = pos.answer === 'none' ? NONE_BONUS : 0;
     G.scores[win.player] += rank + bonus + noneBonus;
     G.times[win.player].push(win.rt);
+    // スコアアタック：考えた時間を引き、速さに応じた秒をもらう
+    const gain = G.attack ? (ATTACK.gain[rank] || 0) * attackFactor() : 0, gainText = G.attack && gain ? `　+${gain / 1000}秒` : '';
+    if (G.attack) G.clock = G.clock - win.rt + gain;
     updateScores();
-    padMsg(win.player, `正解！ ${(win.rt / 1000).toFixed(2)}秒` + (bonus ? ` +${bonus}` : ''));
-    $('timer').textContent = (win.rt / 1000).toFixed(2) + '秒';
+    padMsg(win.player, `正解！ ${(win.rt / 1000).toFixed(2)}秒` + (bonus ? ` +${bonus}` : '') + gainText);
+    $('timer').textContent = G.attack ? attackTimerText(G.clock) : (win.rt / 1000).toFixed(2) + '秒';
     sfx('correct');
     if (pos.answer !== 'none') {
-      await callCutin(win.player, win.call || callText(win.player), !!win.call);
-      await hitStop();
-      await RANK_INFO[rank].fn();
-      await banner(RANK_INFO[rank].name, `<b class="plus">+${rank + bonus}点</b><br>` + (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${(win.rt / 1000).toFixed(2)}秒` + (G.format === 'live' ? 'で発見' : '') + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText, 1500, rank, `ランク${rank}`);
-      await rewind();
+      if (!fxShort()) {
+        await callCutin(win.player, win.call || callText(win.player), !!win.call);
+        await hitStop();
+        await RANK_INFO[rank].fn();
+      }
+      await banner(RANK_INFO[rank].name, `<b class="plus">+${rank + bonus}点</b>${gainText ? `<br><b class="gain">${gainText.trim()}</b>` : ''}<br>` + (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${(win.rt / 1000).toFixed(2)}秒` + (G.format === 'live' ? 'で発見' : '') + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText, fxShort() ? 700 : 1500, rank, `ランク${rank}`);
+      if (!fxShort()) await rewind();
     } else {
-      await mikiri(`${(win.rt / 1000).toFixed(2)}秒` + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText, rank + bonus + noneBonus);
+      await mikiri(`${(win.rt / 1000).toFixed(2)}秒` + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText + gainText, rank + bonus + noneBonus);
     }
+    // スコアアタックは解説をとばしてテンポよく次へ（持ち時間は止まっている）
+    if (G.attack) { await wait(200); return nextRound(); }
   } else {
     if (!missed) { G.streak = G.streak.map(() => 0); updateScores(); }  // 誰も答えずに時間切れなら、全員の連続が途切れる
     sfx('wrong');
     // ふたりで対局では「自分」「相手」がどちらを指すか分からないので、1P・2Pで言う
     const ansText = G.mode === 'duo' ? {K0: '1Pの王が詰み', K1: '2Pの玉が詰み', none: '詰みなし'}[pos.answer] : CHOICES.find(c => c[0] === pos.answer)[1];
-    await banner(missed ? 'お手つき…' : 'TIME UP', `正解は「${ansText}」`, 1300);
+    await banner(G.attack && G.endReason ? (G.endReason === 'time' ? 'TIME UP' : 'GAME OVER') : missed ? 'お手つき…' : 'TIME UP', `正解は「${ansText}」`, 1300);
+    // スコアアタックは外しても解説を出さず、正解だけ見せて次へ
+    if (G.attack) return nextRound();
   }
   await explain();
 }
 
-function highKey(format, level, total, pieces = PIECE_MODE) { return `${format}|${format === 'live' ? '-' : level}|${total}` + (pieces === 'many' ? '|many' : ''); }
+function highKey(format, level, total, pieces = PIECE_MODE) { return format === 'attack' ? `attack|${level}` + (pieces === 'many' ? '|many' : '') : `${format}|${format === 'live' ? '-' : level}|${total}` + (pieces === 'many' ? '|many' : ''); }
 function highLabel(format, level, total, pieces = PIECE_MODE) {
   const lv = {intro: '入門', 1: '初級', 3: '中級', 5: '上級'}[level];
-  return (format === 'live' ? `リアル対局リセット・${total}局` : `詰め将棋 ${lv}・${total}問`) + (pieces === 'many' ? '・駒多め' : '');
+  return (format === 'attack' ? `スコアアタック ${lv}` : format === 'live' ? `リアル対局リセット・${total}局` : `詰め将棋 ${lv}・${total}問`) + (pieces === 'many' ? '・駒多め' : '');
 }
 function loadHighs() { const h = load('highscores', {}); return h && typeof h === 'object' ? h : {}; }
 // 今回の結果を記録して、順位（1〜5、圏外は 0）を返す
@@ -1901,11 +1963,26 @@ function recordHigh(score, avgSec) {
 function highTable(key, mark) {
   const list = loadHighs()[key] || [];
   if (!list.length) return '';
+  const byCorrect = key.endsWith('#correct');
   return '<table class="high-table">' + list.map((e, i) =>
-    `<tr class="${e.t === mark ? 'me' : ''}"><td>${i + 1}位</td><td>${e.score}点</td><td>${e.avg ?? '—'}</td><td>${e.date}</td></tr>`).join('') + '</table>';
+    `<tr class="${e.t === mark ? 'me' : ''}"><td>${i + 1}位</td><td>${byCorrect ? `${e.correct}問` : `${e.score}点`}</td><td>${byCorrect ? `${e.score}点` : e.correct != null ? `${e.correct}問` : e.avg ?? '—'}</td><td>${e.date}</td></tr>`).join('') + '</table>';
+}
+// スコアアタックの記録：得点の上位5件と、正解数の上位5件を別々に残す。それぞれの順位を返す
+function recordAttack(score, correct) {
+  const highs = loadHighs(), key = highKey('attack', G.level, 0, G.attackPieces);
+  const d = new Date(), entry = {score, correct, date: `${d.getMonth() + 1}/${d.getDate()}`, t: d.getTime()};
+  const put = (k, cmp) => { const list = (highs[k] || []).concat([entry]).sort((a, b) => cmp(a, b) || a.t - b.t).slice(0, 5); highs[k] = list; return list.indexOf(entry) + 1; };
+  const ps = put(key, (a, b) => b.score - a.score), pc = put(key + '#correct', (a, b) => b.correct - a.correct || b.score - a.score);
+  save('highscores', highs);
+  return [ps, pc, key, entry.t];
 }
 function updateTitleHigh() {
   const fmt = $('optFormat').value, lv = $('optLevel').value, total = +$('optCount').value, pc = $('optPieces').value;
+  if (fmt === 'attack') {
+    const h = loadHighs(), key = highKey('attack', lv, 0, pc), a = (h[key] || [])[0], b = (h[key + '#correct'] || [])[0];
+    $('highRecord').innerHTML = `ハイスコア（${highLabel('attack', lv, 0, pc)}）　` + (a ? `<b>${a.score}点</b>・最多正解 <b>${b.correct}問</b>` : 'まだ記録なし');
+    return;
+  }
   const list = loadHighs()[highKey(fmt, lv, total, pc)] || [];
   $('highRecord').innerHTML = `ハイスコア（${highLabel(fmt, lv, total, pc)}）　` + (list.length ? `<b>${list[0].score}点</b>` : 'まだ記録なし');
 }
@@ -1918,6 +1995,17 @@ function showResult() {
     const w = G.scores[0] === G.scores[1] ? '引き分け' : `${PLAYER_NAMES[G.scores[0] > G.scores[1] ? 0 : 1]} の勝利`;
     $('resultTitle').textContent = w;
     for (const i of [0, 1]) html += `${PLAYER_NAMES[i]}：${G.scores[i]}点（正解${G.times[i].length}問・平均${avg(G.times[i])}）<br>`;
+  } else if (G.attack) {
+    const correct = G.times[0].length;
+    $('resultTitle').textContent = `${G.scores[0]}点`;
+    html = `スコアアタック終了（${G.endReason === 'miss' ? `×が${ATTACK.maxMiss}つ` : '持ち時間切れ'}）<br>正解 ${correct}問　平均 ${avg(G.times[0])}`;
+    // 1問も正解していなければ記録しない（0点の行で記録表が埋まらないように）
+    const [ps, pc, key, t] = correct ? recordAttack(G.scores[0], correct) : [0, 0, highKey('attack', G.level, 0, G.attackPieces), null];
+    if (ps === 1) html += '<br><b class="high-new">ハイスコア更新！</b>';
+    if (pc === 1) html += '<br><b class="high-new">最多正解 更新！</b>';
+    if (correct && (ps !== 1 || pc !== 1) && (ps > 1 || pc > 1)) html += `<br><b style="color:#ffe27a">得点${ps ? ps + '位' : '圏外'}・正解数${pc ? pc + '位' : '圏外'}</b>`;
+    html += `<div class="high-head">得点（${highLabel('attack', G.level, 0, G.attackPieces)}）</div>` + highTable(key, ps ? t : null);
+    html += `<div class="high-head">正解数</div>` + highTable(key + '#correct', pc ? t : null);
   } else {
     $('resultTitle').textContent = `${G.scores[0]}点`;
     html = `正解 ${G.times[0].length} / ${G.total}問<br>平均 ${avg(G.times[0])}`;
@@ -1946,6 +2034,10 @@ function showRecords() {
     const key = highKey(fmt, lv, n, pc);
     if (highs[key] && highs[key].length) order.push([key, highLabel(fmt, lv, n, pc)]);
   }
+  for (const pc of ['few', 'many']) for (const lv of ['intro', '1', '3', '5']) {
+    const key = highKey('attack', lv, 0, pc);
+    if (highs[key] && highs[key].length) order.push([key, highLabel('attack', lv, 0, pc) + '（得点）'], [key + '#correct', highLabel('attack', lv, 0, pc) + '（正解数）']);
+  }
   let html = '<h3>ハイスコア</h3>';
   html += order.length ? order.map(([key, label]) => `<div class="rec-group"><div class="rec-label">${label}</div>${highTable(key, null)}</div>`).join('')
     : `<p class="rec-empty">${phraseHTML('まだ記録がありません。|ひとりで対局すると|記録されます')}</p>`;
@@ -1959,10 +2051,18 @@ function showRecords() {
 }
 function showTitle() { showScreen('title'); }
 // 対局の設定画面（前回の設定がそのまま入っている）。mode: solo / duo / sync（みんなで対局のホスト）
-let setupMode = 'solo';
+let setupMode = 'solo', syncFormatUI = () => {};
+let attackOpt = null;
 function showSetup(mode) {
   setupMode = mode;
   showScreen('setup');
+  // スコアアタックはひとりで対局のときだけ選べる
+  const fmt = $('optFormat');
+  attackOpt = attackOpt || fmt.querySelector('option[value="attack"]');
+  if (mode === 'solo') { if (!attackOpt.parentNode) fmt.appendChild(attackOpt); fmt.value = load('format', 'quiz'); }
+  else { attackOpt.remove(); if (load('format', 'quiz') === 'attack') fmt.value = 'quiz'; }
+  if (!fmt.value) fmt.value = 'quiz';
+  syncFormatUI();
   $('setupTitle').textContent = {solo: 'ひとりで対局', duo: 'ふたりで対局', sync: 'みんなで対局'}[mode];
   $('setupStart').textContent = mode === 'sync' ? '部屋を作る' : '開始';
   // 2P の決め台詞はふたりで対局のときだけ。ハイスコアはひとりのときだけ記録される
@@ -2080,7 +2180,7 @@ async function mikiri(sub, pts) {
   await anim(slash, [{transform: 'rotate(-28deg) scaleX(0)', opacity: 1, transformOrigin: '0 50%'}, {transform: 'rotate(-28deg) scaleX(1)', opacity: 1, transformOrigin: '0 50%'}], {duration: 140, easing: 'ease-out'});
   flash('#fff', 160); shake(200, 8);
   anim(slash, [{opacity: 1}, {opacity: 0}], 400).then(() => slash.remove());
-  await banner('見切った！', `<b class="plus">+${pts}点</b><br>見切り +${NONE_BONUS}　` + sub, 1200, 5, '詰みなし');
+  await banner('見切った！', `<b class="plus">+${pts}点</b><br>見切り +${NONE_BONUS}　` + sub, fxShort() ? 700 : 1200, 5, '詰みなし');
 }
 // ---------- 飛び散り物理 ----------
 const particles = [];
@@ -3033,19 +3133,26 @@ function initCalls() {
   pcs.value = load('pieces', 'few'); if (!pcs.value) pcs.value = 'few';
   PIECE_MODE = pcs.value;
   pcs.addEventListener('change', () => { save('pieces', pcs.value); PIECE_MODE = pcs.value; });
+  const fxSel = $('optFx');
+  fxSel.value = load('fx', 'full'); if (!fxSel.value) fxSel.value = 'full';
+  fxSel.addEventListener('change', () => save('fx', fxSel.value));
   const lim = $('optLimit'), btns = $('optButtons');
   btns.value = String(load('buttons', 2)); if (!btns.value) btns.value = '2';  // 初めて開いたときは2ボタン（シンプルなので）
   const fmt = $('optFormat');
   fmt.value = load('format', 'quiz'); if (!fmt.value) fmt.value = 'quiz';
   // リアル対局リセットでは難易度を使わないので欄ごと隠し、「問題数」は「対局数」と呼ぶ
+  // スコアアタックは持ち時間制なので、問題数と1問の制限時間は使わない
   const syncLevelOpt = () => {
-    const live = fmt.value === 'live';
+    const live = fmt.value === 'live', attack = fmt.value === 'attack';
     $('lblLevel').style.display = live ? 'none' : '';
+    $('lblCount').style.display = attack ? 'none' : '';
+    $('lblLimit').style.display = attack ? 'none' : '';
     $('countLabel').textContent = live ? '対局数' : '問題数';
     [...$('optCount').options].forEach(o => { o.textContent = o.value + (live ? '局' : '問'); });
   };
   fmt.addEventListener('change', () => { save('format', fmt.value); syncLevelOpt(); });
   syncLevelOpt();
+  syncFormatUI = syncLevelOpt;
   // リアル対局リセットを選んでいたら、開いた時点で対局を作り始める（ボタン数を変えたら作り直す）
   const warmLive = () => {
     const side = btns.value === '2' ? 0 : undefined;
@@ -4016,8 +4123,8 @@ function syncPress(choice, ts) {
   padMsg(0, 'お手つき！次の局は休み');
   (async () => {
     if (L) { L.paused = true; if (L.moving) await L.moving; }
-    await destroy1();
-    await donbiki(0);
+    if (fxShort()) { shake(250, 8); await wait(400); }
+    else { await destroy1(); await donbiki(0); }
     if (G.syncRoundOver) return;
     clearFx();
     renderBoard();
@@ -4044,11 +4151,13 @@ async function syncFinish(d) {
     sfx('correct');
     const sub = (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${name} ${(w.rt / 1000).toFixed(2)}秒` + (w.bonus ? `　${w.streak}連続！ +${w.bonus}` : '');
     if (pos.answer !== 'none') {
-      await syncCallCutin(w.idx, w.call || '詰んだ！', mine);
-      await hitStop();
-      await RANK_INFO[w.rank].fn();
-      await banner(RANK_INFO[w.rank].name, `<b class="plus">+${w.rank + (w.bonus || 0)}点</b><br>` + sub, 1500, w.rank, `ランク${w.rank}`);
-      await rewind();
+      if (!fxShort()) {
+        await syncCallCutin(w.idx, w.call || '詰んだ！', mine);
+        await hitStop();
+        await RANK_INFO[w.rank].fn();
+      }
+      await banner(RANK_INFO[w.rank].name, `<b class="plus">+${w.rank + (w.bonus || 0)}点</b><br>` + sub, fxShort() ? 700 : 1500, w.rank, `ランク${w.rank}`);
+      if (!fxShort()) await rewind();
     } else await mikiri(sub, w.rank + (w.bonus || 0) + NONE_BONUS);
   } else {
     sfx('wrong');
@@ -4097,7 +4206,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.13';
+const APP_VERSION = 'v1.0.14';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
@@ -4139,9 +4248,10 @@ $('recordsBtn').addEventListener('click', () => { sfx('tap'); showRecords(); });
 $('recordsBack').addEventListener('click', () => { sfx('tap'); showTitle(); });
 // 演出の途中でも確実に止められるよう、読み込み直してタイトルへ戻る（設定は保存済み）
 // ---------- ゲーム中の設定画面（タイトルの設定部品をそのまま移して使う） ----------
-const SET_PARTS = ['lblFormat', 'lblLevel', 'lblButtons', 'lblPieces', 'lblLimit', 'lblBgm', 'callsPanel'];
+const SET_PARTS = ['lblFormat', 'lblLevel', 'lblButtons', 'lblPieces', 'lblFx', 'lblLimit', 'lblBgm', 'callsPanel'];
 let setHome = null;
 function openSettings() {
+  $('setNote').textContent = G.attack ? 'スコアアタック中は、モード・ボタン数・難易度・駒の数は次の対局から変わります。' : 'モード・ボタン数・難易度は、次の局から変わります。';
   // 出題中なら一時停止して盤面を隠す（みんなで対局はほかの人が続けるので止めない）
   if (G.active && G.mode !== 'sync') {
     G.paused = performance.now() - G.t0;
