@@ -414,7 +414,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
       <b>【ボタン2つ】</b>手前の自分の王だけを見て、「自分が詰み」か「詰みなし」を答える。自分が詰まされたら、悔しさのあまり盤をひっくり返す<br>
       <b>【リアル対局リセット】</b>CPUどうしが1手ずつ指していく（ときどき長考する）。どちらかに詰みが生じたら（何手詰めでも）、その瞬間から詰まされる側のボタンを押せる。早すぎるとお手つき。難易度の設定は使わない<br>
       <b>【初級・中級・上級】</b>まだ詰んでいない局面で、攻める側の番だとして「1手（3手・5手）で詰ませられるか」を答える。王手を続けて詰ませる、ふつうの詰将棋のルール<br>
-      間違えるとお手つき。相手にドン引きされる。<br>      <b>【お手つき】</b>ひとりは−5点。ふたりは減点なしだが、その局と次の局は答えられない（勘で押すと損をする重さ）
+      間違えるとお手つき。相手にドン引きされる。<br>      <b>【お手つき】</b>ひとりは−12点。ふたりは減点なしだが、その局と次の局は答えられない（勘で押すと損をする重さ）
       <h3>▶ 駒の見分け方</h3>
       枠の色＝どちらの駒か（<span style="color:#8fd0ff">青＝手前の自分の駒</span>／<span style="color:#ff9aab">赤＝奥の相手の駒</span>）。中の色＝駒の種類。赤い文字は成った駒。
       <div class="legend" id="legend"></div>
@@ -747,17 +747,49 @@ function classify(pos) {
   return {type: 'open', k, checkers, g, score, trap};
 }
 
-function lastMoveOf(pos, an, drop) {
-  const {B, a} = pos;
-  let sq = an.checkers[0];
-  if (!sq) {
+// 直前の手を、実際に指せた手として決める。指せた手が見つからない局面（ありえない局面）は null
+// 条件：駒を元のマスに戻すと ①そこから今のマスへ動ける ②戻した局面で、守る側の玉に王手がかかっていない（攻める側の手番に王手が残ることはない）
+// 両王手は、片方の駒が動いたことで後ろの飛車・角・香の通り道が開いた形（開き王手）だけがこの条件を満たす
+function lastMoveOf(pos, an, wantDrop) {
+  const {B, d, a} = pos, k = an.k || findKing(B, d);
+  const inZone = r => a === 0 ? r <= 2 : r >= 6;
+  const tryPiece = (r, c, drop) => {
+    const p = B[r][c];
+    if (drop) {
+      if (p.p || p.t === 'K' || isDead(p.t, false, a, r)) return null;
+      const nb = B.map(row => row.slice()); nb[r][c] = null;
+      if (p.t === 'P' && hasPawnInFile(nb, a, c)) return null;
+      return inCheck(nb, d) ? null : {r, c, drop: true};
+    }
+    const froms = [];
+    for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) if (!B[i][j]) froms.push([i, j]);
+    for (const [i, j] of froms.sort(() => Math.random() - 0.5)) {
+      for (const pre of p.p ? [p, {...p, p: false}] : [p]) {
+        if (pre !== p && !inZone(i) && !inZone(r)) continue;  // 成るのは敵陣に入る・出る・敵陣内で動くときだけ
+        if (isDead(pre.t, pre.p, a, i)) continue;
+        const nb = B.map(row => row.slice()); nb[r][c] = null; nb[i][j] = pre;
+        if (!pieceHits(nb, i, j, pre, r, c)) continue;
+        if (pre.t === 'K' && attackers(nb, i, j, d, true).length) continue;
+        if (inCheck(nb, d)) continue;
+        return {r, c, from: [i, j], drop: false};
+      }
+    }
+    return null;
+  };
+  let mv = null;
+  if (an.checkers.length) {
+    for (const ch of an.checkers) {
+      mv = wantDrop ? tryPiece(ch.r, ch.c, true) : tryPiece(ch.r, ch.c, false) || (an.checkers.length === 1 ? tryPiece(ch.r, ch.c, true) : null);
+      if (mv) break;
+    }
+  } else {
     const list = [];
-    for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) { const p = B[i][j]; if (p && p.s === a && p.t !== 'K') list.push({r: i, c: j}); }
-    if (!list.length) return null;  // 攻め方に玉以外の駒がない
-    sq = pick(list);
+    for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) { const q = B[i][j]; if (q && q.s === a && q.t !== 'K') list.push([i, j]); }
+    for (const [i, j] of list.sort(() => Math.random() - 0.5)) { mv = tryPiece(i, j, false); if (mv) break; }
   }
-  const p = B[sq.r][sq.c];
-  return {r: sq.r, c: sq.c, text: `${a === 0 ? '▲' : '△'}${sqName(sq.r, sq.c)}${pieceLabel(p)}${drop ? '打' : ''}`, drop};
+  if (!mv) return null;
+  const p = B[mv.r][mv.c];
+  return {r: mv.r, c: mv.c, from: mv.from || null, drop: mv.drop, text: `${a === 0 ? '▲' : '△'}${sqName(mv.r, mv.c)}${pieceLabel(p)}${mv.drop ? '打' : ''}`};
 }
 
 // kind: 'mate' | 'trick' | 'uchifu' | 'nocheck'
@@ -767,29 +799,28 @@ function generate(kind, side) {
     if (!pos) continue;
     const an = classify(pos);
     if (!an) continue;
-    if (kind === 'mate' && an.type === 'mate') {
-      return {...pos, an, answer: pos.d === 0 ? 'K0' : 'K1', category: 'mate', last: lastMoveOf(pos, an, false)};
-    }
-    if (kind === 'uchifu' && an.type === 'mate' && an.uchifuable) {
-      return {...pos, an, answer: 'none', category: 'uchifu', last: lastMoveOf(pos, an, true)};
-    }
-    if (kind === 'trick' && an.type === 'open' && an.score <= 2) {
+    let category = null, answer = 'none', drop = false;
+    if (kind === 'mate' && an.type === 'mate') { category = 'mate'; answer = pos.d === 0 ? 'K0' : 'K1'; }
+    else if (kind === 'uchifu' && an.type === 'mate' && an.uchifuable) { category = 'uchifu'; drop = true; }
+    else if (kind === 'trick' && an.type === 'open' && an.score <= 2) {
       // 「逃げられるだけ」は見抜きやすいので少なめに
       if (an.trap === 'escape' && Math.random() < 0.6) continue;
       if (an.trap === 'kingcap' && Math.random() < 0.5) continue;
-      return {...pos, an, answer: 'none', category: an.trap, last: lastMoveOf(pos, an, false)};
+      category = an.trap;
     }
-    if (kind === 'nocheck' && an.type === 'nocheck' && an.kmoves <= 2) {
-      const last = lastMoveOf(pos, an, false);
-      if (!last) continue;
-      return {...pos, an, answer: 'none', category: 'nocheck', last};
-    }
+    else if (kind === 'nocheck' && an.type === 'nocheck' && an.kmoves <= 2) category = 'nocheck';
+    if (!category) continue;
+    // 実際の対局では起こりえない局面（指せた直前の手がない）は出さない
+    const last = lastMoveOf(pos, an, drop);
+    if (!last) continue;
+    return {...pos, an, answer, category, last};
   }
   return null;
 }
 function generateQuestion(side, forceMate) {
   const x = forceMate ? 0 : Math.random();
-  const kind = x < 0.65 ? 'mate' : x < 0.85 ? 'trick' : x < 0.93 ? 'uchifu' : 'nocheck';
+  // 詰みは約55％（多いほうが爽快だが、多すぎると「詰み」の連打が得になる）
+  const kind = x < 0.55 ? 'mate' : x < 0.8 ? 'trick' : x < 0.91 ? 'uchifu' : 'nocheck';
   return generate(kind, side) || generate('mate', side);
 }
 // ---------- N手詰め（初級＝1手詰め、中級＝3手詰め） ----------
@@ -1427,7 +1458,7 @@ async function makeQuestionInner() {
   const side = G.buttons === 2 ? 0 : undefined;
   const forceMate = (G.noneStreak || 0) >= 2;  // 詰みなしは2問まで。3問目は必ず詰み
   if (G.level === 'intro') return generateQuestion(side, forceMate);
-  const n = +G.level, kind = forceMate || Math.random() < 0.68 ? 'mate' : 'trick';
+  const n = +G.level, kind = forceMate || Math.random() < 0.58 ? 'mate' : 'trick';
   const q = n === 5 ? await takePuzzle5(side, kind)
     : generateN(n, kind, side) || generateN(n, kind === 'mate' ? 'trick' : 'mate', side);
   if (!q) return generateQuestion(side, forceMate);
@@ -1585,7 +1616,7 @@ function tickTimer() {
   $('timer').textContent = (el / 1000).toFixed(2) + '秒' + limitText();
   if (G.mode === 'sync') {
     // みんなで対局：時間切れの判定はホストだけが行い、全員に知らせる
-    if (S.host && S.round && !S.round.decided) {
+    if (S.host && S.round && !S.round.decided && !S.round.closing) {
       const L = G.live;
       if (G.format === 'live' ? (L && L.mated != null && performance.now() - L.mateT > (G.limit || 30000)) : (G.limit && el > G.limit)) hostDecide();
     }
@@ -1615,12 +1646,14 @@ function press(player, choice, ts) {
   } else {
     sfx('wrong');
     G.locked[player] = true;
-    if (G.mode === 'duo') G.rest[player] = 1; else G.scores[player] -= 5;
+    // ひとりは−12点（詰みは連続制限込みで約60％。「詰み」を連打しても平均で得をしない重さ）。ふたりは次の局が休み
+    if (G.mode === 'duo') G.rest[player] = 1; else G.scores[player] -= 12;
     updateScores();
     $('pad' + player).classList.add('locked');
-    padMsg(player, G.mode === 'duo' ? 'お手つき！次の局は休み' : 'お手つき！ −5点');
+    padMsg(player, G.mode === 'duo' ? 'お手つき！次の局は休み' : 'お手つき！ −12点');
     const players = G.mode === 'duo' ? [0, 1] : [0];
-    const allOut = players.every(i => G.locked[i]);
+    // 2ボタンの詰め将棋は、お手つきが出たら残りが1択になるので、その局はそこで終わり
+    const allOut = foulEndsRound() || players.every(i => G.locked[i]);
     // 詰んでいないのに盤をひっくり返した：秒数に関係なく駒を薙ぎ払い、相手がドン引きする。
     // その間はタイマーを止め、まだ答えていない人がいれば盤を戻して続ける
     const pauseAt = performance.now();
@@ -3556,7 +3589,7 @@ async function hostNextRound() {
 }
 function hostOnPress(idx, d) {
   const R = S.round;
-  if (!R || R.decided || R.resting.has(idx) || R.fouled.has(idx)) return;
+  if (!R || R.decided || R.closing || R.resting.has(idx) || R.fouled.has(idx)) return;
   if (!d.correct) {
     R.fouled.add(idx);
     G.rest[idx] = 1;
@@ -3569,8 +3602,14 @@ function hostOnPress(idx, d) {
   // 少しだけ待って、もっと速い正解が後から届いていないかを見る
   if (!R.timer) R.timer = setTimeout(() => hostDecide(), 500);
 }
+// 2ボタンの詰め将棋は、お手つきが出たら残りが1択になる（ほかの人が必ず当てられてしまう）
+function foulEndsRound() { return G.format !== 'live' && G.buttons === 2; }
 function hostCheckAllOut() {
   const R = S.round;
+  if (!R.presses.length && foulEndsRound() && R.fouled.size) {
+    if (!R.closing) { R.closing = true; bc({t: 'closing'}); syncHandle({t: 'closing'}); setTimeout(() => hostDecide(true), 2300); }
+    return;
+  }
   const active = S.players.map((p, i) => i).filter(i => !S.players[i].gone && !R.resting.has(i));
   if (!R.presses.length && active.every(i => R.fouled.has(i))) hostDecide(true);
 }
@@ -3635,6 +3674,7 @@ function syncHandle(d) {
   } else if (d.t === 'start') { if (!S.host) { S.started = true; S.players = d.players; syncStartGame(d); } }
   else if (d.t === 'round') syncBeginRound(d);
   else if (d.t === 'foul') { G.syncFouled.add(d.idx); renderScoreboard(); }
+  else if (d.t === 'closing') { G.active = false; setPads('disabled', true); }  // 2ボタンでお手つきが出たので、ほかの人も押せなくする
   else if (d.t === 'result') syncFinish(d);
   else if (d.t === 'end') showSyncResult(d);
 }
@@ -3784,7 +3824,7 @@ async function syncFinish(d) {
   } else {
     sfx('wrong');
     const ansText = (G.buttons === 2 ? CHOICES_TWO : CHOICES).concat(CHOICES).find(c => c[0] === pos.answer)[1];
-    await banner(d.missed ? '全員お手つき…' : 'TIME UP', `正解は「${ansText}」`, 1300);
+    await banner(d.missed ? (foulEndsRound() ? 'お手つき…' : '全員お手つき…') : 'TIME UP', `正解は「${ansText}」`, 1300);
   }
   await explain();
 }
@@ -3828,7 +3868,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.6';
+const APP_VERSION = 'v1.0.7';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
