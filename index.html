@@ -450,7 +450,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
       <h3>▶ 決め台詞（詰みを当てた瞬間に叫ぶ）</h3>
       <div class="call-row" data-p="0"><span class="pname p1">1P</span><select class="call-sel"></select><input class="call-input hidden" maxlength="12" placeholder="好きな台詞（12文字まで）"><div class="rec"><button class="rec-btn">● 録音</button><button class="rec-play">▶ 再生</button><button class="rec-del">削除</button><span class="rec-st"></span></div></div>
       <div class="call-row" data-p="1"><span class="pname p2">2P</span><select class="call-sel"></select><input class="call-input hidden" maxlength="12" placeholder="好きな台詞（12文字まで）"><div class="rec"><button class="rec-btn">● 録音</button><button class="rec-play">▶ 再生</button><button class="rec-del">削除</button><span class="rec-st"></span></div></div>
-      <label class="chk"><input type="checkbox" id="optVoice"> 録音した声を鳴らす</label>
+      <label class="chk"><input type="checkbox" id="optVoice"> 録音した声を鳴らす（みんなで対局では全員の端末で）</label>
     </div>
     <div class="hiscore" id="highRecord"></div>
     <div class="menu">
@@ -3912,6 +3912,11 @@ function hostOnConn(conn) {
     const idx = S.players.findIndex(p => p.conn === conn);
     if (d.t === 'ping') conn.send({t: 'pong', t0: d.t0, h: performance.now()});
     else if (d.t === 'press' && idx > 0) hostOnPress(idx, d);
+    else if ((d.t === 'voice' || d.t === 'voice-clear') && idx > 0) {
+      const m = {...d, idx};  // 誰の声かはホストが決める
+      S.players.forEach((p, i) => { if (i !== idx && p.conn && !p.gone && p.conn.open) p.conn.send(m); });
+      syncVoiceData(m);
+    }
   });
   conn.on('close', () => {
     const w = S.pending.findIndex(x => x.conn === conn);
@@ -3996,7 +4001,9 @@ function hostOnPress(idx, d) {
   if (!R.timer) R.timer = setTimeout(() => hostDecide(), 500);
 }
 // 2ボタンの詰め将棋は、お手つきが出たら残りが1択になる（ほかの人が必ず当てられてしまう）
-function foulEndsRound() { return G.format !== 'live' && G.buttons === 2; }
+// ただし、それが分かってしまうのは1台を囲むふたりで対局だけ。みんなで対局では、ほかの人には
+// 「お手つき」としか見えず、どちらを押したかは伝わらないので、局は続けて残りの人が答える
+function foulEndsRound() { return G.mode !== 'sync' && G.format !== 'live' && G.buttons === 2; }
 function hostCheckAllOut() {
   const R = S.round;
   if (!R.presses.length && foulEndsRound() && R.fouled.size) {
@@ -4071,6 +4078,7 @@ function syncHandle(d) {
   else if (d.t === 'foul') { G.syncFouled.add(d.idx); renderScoreboard(); }
   else if (d.t === 'closing') { G.active = false; setPads('disabled', true); }  // 2ボタンでお手つきが出たので、ほかの人も押せなくする
   else if (d.t === 'result') syncFinish(d);
+  else if (d.t === 'voice' || d.t === 'voice-clear') syncVoiceData(d);
   else if (d.t === 'end') showSyncResult(d);
 }
 function syncStartGame(d) {
@@ -4091,6 +4099,7 @@ function syncStartGame(d) {
   $('pad0').querySelector('.name').style.background = PLAYER_COLORS[S.me];
   renderScoreboard();
   layout();
+  shareMyVoices();
 }
 function renderScoreboard() {
   if (G.mode !== 'sync') return;
@@ -4162,6 +4171,62 @@ async function syncLivePlayback(live, start) {
     if (L.idx === answerAt) markAnswerable();
   }
 }
+// ---- みんなで対局：録音した決め台詞の声を、部屋の全員に配る ----
+// 「録音した声を鳴らす」にしている人の声だけを送る。端末ごとに録音の形式が違うので、
+// 16kHz の生の波形（16bit）に直して送り、受け取った側でそのまま鳴らす（形式の違いで鳴らない端末をなくす）
+const VOICE_SR = 16000, VOICE_CHUNK = 16000;
+S.voices = {};  // `${idx}|${台詞}` → {sr, parts, total, f32, buf}
+async function voiceToPCM(entry) {
+  const src = entry.buf, start = entry.offset, dur = Math.min(src.duration - start, REC_MAX_MS / 1000);
+  if (dur <= 0.05) return null;
+  const n = Math.ceil(dur * VOICE_SR);
+  const oc = new OfflineAudioContext(1, n, VOICE_SR);
+  const bs = oc.createBufferSource(); bs.buffer = src; bs.connect(oc.destination); bs.start(0, start, dur);
+  const out = (await oc.startRendering()).getChannelData(0);
+  const i16 = new Int16Array(out.length);
+  for (let i = 0; i < out.length; i++) i16[i] = Math.max(-32768, Math.min(32767, Math.round(out[i] * 32767)));
+  let bin = '';
+  const u8 = new Uint8Array(i16.buffer);
+  for (let i = 0; i < u8.length; i += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+async function shareMyVoices() {
+  const send = m => { if (S.host) bc(m); else if (S.hostConn && S.hostConn.open) S.hostConn.send(m); };
+  send({t: 'voice-clear', idx: S.me});
+  if (!callVoice) return;
+  for (const text of Object.keys(recs[0])) {
+    const entry = await decodeRec(0, text);
+    if (!entry) continue;
+    let b64 = null;
+    try { b64 = await voiceToPCM(entry); } catch (e) {}
+    if (!b64) continue;
+    // 1回で送れる大きさには上限があるので、小分けにして送る
+    const total = Math.ceil(b64.length / VOICE_CHUNK);
+    for (let k = 0; k < total; k++) send({t: 'voice', idx: S.me, text, sr: VOICE_SR, part: k, total, data: b64.slice(k * VOICE_CHUNK, (k + 1) * VOICE_CHUNK)});
+  }
+}
+function syncVoiceData(d) {
+  if (d.idx === S.me) return;
+  if (d.t === 'voice-clear') { for (const k of Object.keys(S.voices)) if (k.startsWith(d.idx + '|')) delete S.voices[k]; return; }
+  const key = d.idx + '|' + d.text;
+  const v = S.voices[key] && S.voices[key].total === d.total && !S.voices[key].f32 ? S.voices[key] : (S.voices[key] = {sr: d.sr, total: d.total, parts: []});
+  v.parts[d.part] = d.data;
+  if (v.parts.filter(x => x != null).length < v.total) return;
+  const bin = atob(v.parts.join('')), u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const i16 = new Int16Array(u8.buffer), f32 = new Float32Array(i16.length);
+  for (let i = 0; i < i16.length; i++) f32[i] = i16[i] / 32768;
+  v.f32 = f32; v.parts = null;
+}
+// ほかの人の声を鳴らす。鳴らせたら true
+function playRemoteVoice(idx, text) {
+  const v = S.voices[idx + '|' + text];
+  if (!v || !v.f32) return false;
+  const c = synth.unlock();
+  if (!v.buf) { v.buf = c.createBuffer(1, v.f32.length, v.sr); v.buf.getChannelData(0).set(v.f32); }
+  playRec({buf: v.buf, offset: 0});
+  return true;
+}
 function syncPress(choice, ts) {
   if (!G.active || G.locked[S.me]) return;
   const L = G.format === 'live' ? G.live : null;
@@ -4212,6 +4277,7 @@ async function syncFinish(d) {
     sfx('correct');
     const sub = (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${name} ${(w.rt / 1000).toFixed(2)}秒` + (w.bonus ? `　${w.streak}連続！ +${w.bonus}` : '');
     if (pos.answer !== 'none') {
+      if (fxShort() && !mine) playRemoteVoice(w.idx, w.call);  // 技なしでも、声だけは鳴らす
       if (!fxShort()) {
         await syncCallCutin(w.idx, w.call || '詰んだ！', mine);
         await hitStop();
@@ -4238,7 +4304,7 @@ async function syncCallCutin(idx, text, mine) {
   const w = document.createElement('div'); w.className = 'call-who'; w.textContent = S.players[idx].name;
   el.append(t, w);
   cutinLayer.appendChild(el);
-  if (!mine) sfx('call');  // 本人の端末は押した瞬間に鳴らし済み
+  if (!mine && !playRemoteVoice(idx, text)) sfx('call');  // 本人の端末は押した瞬間に鳴らし済み
   shake(320, 16);
   anim(el, [{opacity: 0}, {opacity: 1}], 80);
   await anim(t, [{transform: 'scale(3.2) rotate(-8deg)', opacity: 0}, {transform: 'scale(.92) rotate(-3deg)', opacity: 1, offset: .7}, {transform: 'scale(1) rotate(-3deg)', opacity: 1}], {duration: 240, easing: 'ease-in'});
@@ -4268,7 +4334,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.21';
+const APP_VERSION = 'v1.0.22';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
