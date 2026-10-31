@@ -424,26 +424,26 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
       <label id="lblFormat">モード
         <select id="optFormat"><option value="quiz">詰め将棋</option><option value="live">リアル対局リセット</option><option value="attack">スコアアタック</option></select>
       </label>
-      <label id="lblCount"><span id="countLabel">問題数</span>
-        <select id="optCount"><option value="5">5問</option><option value="10" selected>10問</option><option value="20">20問</option></select>
-      </label>
       <label id="lblLevel">難易度
         <select id="optLevel"><option value="intro">入門（今、詰んでいる？）</option><option value="1">初級（1手詰めがある？）</option><option value="3">中級（3手詰めがある？）</option><option value="5">上級（5手詰めがある？）</option></select>
-      </label>
-      <label id="lblButtons">ボタン
-        <select id="optButtons"><option value="3">3つ（どっちが詰み？）</option><option value="2">2つ（自分が詰みか？）</option></select>
-      </label>
-      <label id="lblBgm">BGM
-        <select id="optBgm"><option value="0">オフ</option><option value="25">小</option><option value="50">中</option><option value="75">大</option><option value="100">最大</option></select>
       </label>
       <label id="lblPieces">駒の数
         <select id="optPieces"><option value="few">少なめ（すっきり）</option><option value="many">多め（実戦風）</option></select>
       </label>
-      <label id="lblFx">演出
-        <select id="optFx"><option value="full">フル（技＋解説）</option><option value="waza">技のみ</option><option value="explain">解説のみ</option><option value="none">すぐ次へ</option></select>
+      <label id="lblCount"><span id="countLabel">問題数</span>
+        <select id="optCount"><option value="5">5問</option><option value="10" selected>10問</option><option value="20">20問</option></select>
       </label>
       <label id="lblLimit">制限時間
         <select id="optLimit"><option value="5">5秒</option><option value="10">10秒</option><option value="20">20秒</option><option value="30">30秒</option><option value="0">なし</option></select>
+      </label>
+      <label id="lblButtons">ボタン
+        <select id="optButtons"><option value="3">3つ（どっちが詰み？）</option><option value="2">2つ（自分が詰みか？）</option></select>
+      </label>
+      <label id="lblFx">演出
+        <select id="optFx"><option value="full">フル（技＋解説）</option><option value="waza">技のみ</option><option value="explain">解説のみ</option><option value="none">すぐ次へ</option></select>
+      </label>
+      <label id="lblBgm">BGM
+        <select id="optBgm"><option value="0">オフ</option><option value="25">小</option><option value="50">中</option><option value="75">大</option><option value="100">最大</option></select>
       </label>
     </div>
     <div class="calls plate" id="callsPanel">
@@ -4242,7 +4242,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.15';
+const APP_VERSION = 'v1.0.16';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
@@ -4285,7 +4285,7 @@ $('recordsBtn').addEventListener('click', () => { sfx('tap'); showRecords(); });
 $('recordsBack').addEventListener('click', () => { sfx('tap'); showTitle(); });
 // 演出の途中でも確実に止められるよう、読み込み直してタイトルへ戻る（設定は保存済み）
 // ---------- ゲーム中の設定画面（タイトルの設定部品をそのまま移して使う） ----------
-const SET_PARTS = ['lblFormat', 'lblLevel', 'lblButtons', 'lblPieces', 'lblFx', 'lblLimit', 'lblBgm', 'callsPanel'];
+const SET_PARTS = ['lblFormat', 'lblLevel', 'lblPieces', 'lblLimit', 'lblButtons', 'lblFx', 'lblBgm', 'callsPanel'];
 let setHome = null;
 function openSettings() {
   $('setNote').textContent = G.attack ? 'スコアアタック中は、モード・ボタン数・難易度・駒の数は次の対局から変わります。' : 'モード・ボタン数・難易度は、次の局から変わります。';
