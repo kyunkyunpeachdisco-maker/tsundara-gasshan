@@ -179,7 +179,7 @@ button{font-family:inherit;cursor:pointer}
   -webkit-text-stroke:2px #5a0c0c;filter:drop-shadow(0 4px 0 #4a0808) drop-shadow(0 0 16px rgba(0,0,0,.9))}
 .banner .main{white-space:nowrap}
 .banner .rk{display:inline-block;font-size:18px;color:#fff;background:linear-gradient(#c4161c,#7d0b10);border:2px solid var(--gold);border-radius:4px;padding:0 14px;margin-bottom:4px;letter-spacing:.2em;text-shadow:0 1px 0 #000}
-.banner .sub{font-size:22px;color:#fff;text-shadow:0 2px 0 #000,0 0 8px #000;margin-top:6px}
+.banner .sub{font-size:min(22px,5.4vw);color:#fff;text-shadow:0 2px 0 #000,0 0 8px #000;margin-top:6px}
 .flash{position:fixed;inset:0;z-index:70;pointer-events:none;background:#fff}
 .emoji-fly{position:fixed;z-index:53;pointer-events:none;line-height:1}
 #space{position:fixed;inset:0;z-index:57;background:#000;overflow:hidden;pointer-events:none}
@@ -2155,13 +2155,15 @@ async function flash(color = '#fff', dur = 300) {
   f.remove();
 }
 async function hitStop() { flash('#fff', 160); await wait(140); }
+// 小さな文字は「　」で区切ったまとまりごとに折り返す（「10連／続！」のように言葉の途中で切れないように）
+const subHTML = sub => (sub || '').split('　').map(x => `<span class="phr">${x}</span>`).join('　');
 async function banner(text, sub, hold = 1200, rank = 3, label = '') {
   const b = document.createElement('div'); b.className = 'banner';
   const size = 30 + rank * 6;
   const units = [...text].reduce((n, ch) => n + (ch.charCodeAt(0) < 0x250 ? 0.55 : 1), 0);
   b.style.top = '36%';
   b.innerHTML = (label ? `<div class="rk">${label}</div>` : '')
-    + `<div class="main" style="font-size:min(${size}px,${(88 / Math.max(units, 1)).toFixed(1)}vw)">${text}</div><div class="sub">${sub || ''}</div>`;
+    + `<div class="main" style="font-size:min(${size}px,${(88 / Math.max(units, 1)).toFixed(1)}vw)">${text}</div><div class="sub">${subHTML(sub)}</div>`;
   document.body.appendChild(b);
   // 対局中は盤のまん中に合わせて出す（画面の高さで決めると、スマホでは点数の文字が盤の下の持ち駒・直前の手に重なっていた）
   // 演出で盤が傾いたり飛んだりしていても位置がぶれないよう、変形前の置き場所（offsetTop）で測る
@@ -4341,7 +4343,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.24';
+const APP_VERSION = 'v1.0.25';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
