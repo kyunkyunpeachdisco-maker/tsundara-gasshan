@@ -2047,13 +2047,14 @@ function mateReason(pos) {
   if (cp.t === 'N' && !cp.p) return '桂馬の王手で合駒できない';
   const far = ch.slide && ch.dist >= 2;
   if (far && !HAND_ORDER.some(t => pos.H[pos.d][t] > 0)) return '合駒できる持ち駒がない';
-  if (far) return '間に打っても防げない';
+  // 打てる合駒があれば王手は必ず防げるので、持ち駒があるのに詰んでいるのは二歩や行き所のない駒で打てないとき
+  if (far) return '二歩などで合駒できない';
   const info = neighborInfo(pos);
   // 自分の駒が、本当なら逃げられたマス（相手の利きがない）をふさいでいるときだけ
   const B2 = pos.B.map(r => r.slice()); B2[an.k.r][an.k.c] = null;
   if (info.some(n => n.type === 'own' && !attackers(B2, n.r, n.c, pos.a).length)) return '自分の駒が逃げ道をふさぐ';
   if (info.some(n => n.type === 'attacked' && n.far)) return '遠くの駒が逃げ道をにらむ';
-  return '守りのある駒で王手・逃げ道なし';
+  return '王手の駒に守りがある';
 }
 // スコアアタックの結果から、外した問題の解説を見る。最後のページで結果画面に戻る
 function reviewMissed(m) {
@@ -3596,7 +3597,7 @@ function pagesMate(pos, kingName) {
   if (pos.an.checkers.length === 1 && ch.slide && ch.dist >= 2) pages.push(async () => {
     const hasHand = HAND_ORDER.some(t => pos.H[pos.d][t] > 0);
     await beam(ch, pos.an.k, '#ff2a1a', 14);
-    caption(hasHand ? '間に駒を打っても、王手は防げない' : '間に打てる持ち駒もないので、王手を防げない');
+    caption(hasHand ? '持ち駒はあるが、二歩や行き所のない駒になるので間に打てない' : '間に打てる持ち駒もないので、王手を防げない');
   });
   else if (pos.an.checkers.length === 2) pages.push(async () => {
     caption('両王手！2つの駒から同時に王手されていて、防ぎようがない');
@@ -4260,7 +4261,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.19';
+const APP_VERSION = 'v1.0.20';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
