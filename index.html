@@ -2169,6 +2169,8 @@ async function banner(text, sub, hold = 1200, rank = 3, label = '') {
   // 演出で盤が傾いたり飛んだりしていても位置がぶれないよう、変形前の置き場所（offsetTop）で測る
   if (boardEl.offsetHeight > 0 && !$('game').classList.contains('hidden')) {
     let y = 0; for (let el = boardEl; el; el = el.offsetParent) y += el.offsetTop;
+    // 小さな文字は盤の幅の中で折り返す（盤の外まで広がると、段の数字などに重なる）
+    b.querySelector('.sub').style.maxWidth = Math.max(200, boardEl.offsetWidth - 16) + 'px';
     b.style.top = Math.max(4, y + boardEl.offsetHeight / 2 - b.offsetHeight / 2) + 'px';
   }
   await anim(b, [{transform: 'scale(2.4) rotate(-6deg)', opacity: 0}, {transform: 'scale(1) rotate(-3deg)', opacity: 1}], {duration: 220, easing: 'cubic-bezier(.2,1.6,.4,1)'});
@@ -4343,7 +4345,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.25';
+const APP_VERSION = 'v1.0.26';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
