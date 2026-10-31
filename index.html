@@ -2037,7 +2037,24 @@ function showResult() {
 }
 // 問題の種類の呼び名（見直しの一覧に添える）
 const CATEGORY_NAMES = {mate: '詰んでいた（逃げ道も、防ぐ手もない）', uchifu: '打ち歩詰めの反則', drop: '持ち駒を打って防げる', capture: '王手の駒を取れる', block: '駒を動かして防げる', kingcap: '玉で取れる', escape: '逃げ道がある', nocheck: '王手がかかっていない', nopen: '惜しい王手はあるが詰まない'};
-const categoryName = pos => pos.category === 'nmate' ? `${pos.level}手詰めがあった` : CATEGORY_NAMES[pos.category] || '';
+const categoryName = pos => pos.category === 'nmate' ? `${pos.level}手詰めがあった` : pos.category === 'mate' ? '詰んでいた：' + mateReason(pos) : CATEGORY_NAMES[pos.category] || '';
+// 入門の詰み：なぜ詰んでいたかを、いちばん特徴的な理由1つで言う（解説のページと同じ判定を使う）
+function mateReason(pos) {
+  const an = pos.an, ch = an.checkers[0];
+  if (an.checkers.length >= 2) return '両王手で、合駒も取る手も効かない';
+  if (findPins(pos).length) return '防げそうな駒がピンされていて動けない';
+  const cp = pos.B[ch.r][ch.c];
+  if (cp.t === 'N' && !cp.p) return '桂馬の王手は間に駒を打てず、逃げ道もない';
+  const far = ch.slide && ch.dist >= 2;
+  if (far && !HAND_ORDER.some(t => pos.H[pos.d][t] > 0)) return '合駒できる持ち駒がない';
+  if (far) return '間に駒を打っても防げない';
+  const info = neighborInfo(pos);
+  // 自分の駒が、本当なら逃げられたマス（相手の利きがない）をふさいでいるときだけ
+  const B2 = pos.B.map(r => r.slice()); B2[an.k.r][an.k.c] = null;
+  if (info.some(n => n.type === 'own' && !attackers(B2, n.r, n.c, pos.a).length)) return '逃げ道を自分の駒がふさいでいる';
+  if (info.some(n => n.type === 'attacked' && n.far)) return '逃げ道を遠くの駒がにらんでいる';
+  return '王手の駒に守りがついていて取れず、逃げ道もない';
+}
 // スコアアタックの結果から、外した問題の解説を見る。最後のページで結果画面に戻る
 function reviewMissed(m) {
   G.review = true;
@@ -4243,7 +4260,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.17';
+const APP_VERSION = 'v1.0.18';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
