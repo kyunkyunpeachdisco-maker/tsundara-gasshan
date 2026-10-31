@@ -1590,6 +1590,8 @@ function renderBoard() {
 }
 
 // ---------- 進行 ----------
+// 記録の条件（リアル対局リセットは難易度を使わない）
+const setKey = () => `${G.format === 'live' ? '-' : G.level}|${PIECE_MODE}`;
 function startGame(mode) {
   synth.unlock();
   preload3D();
@@ -1605,6 +1607,7 @@ function startGame(mode) {
   PIECE_MODE = $('optPieces').value;
   // スコアアタック：問題の出し方は詰め将棋と同じで、持ち時間と×の数で終わる
   G.attack = G.format === 'attack' && mode === 'solo';
+  G.startSet = setKey(); G.mixed = false;  // 途中で難易度・駒の数を変えたら、ハイスコアは記録しない
   if (G.format === 'attack') G.format = 'quiz';
   if (G.attack) { G.total = Infinity; G.limit = 0; G.attackPieces = PIECE_MODE; G.clock = ATTACK.start * attackFactor(); G.miss = 0; G.endReason = null; G.missedList = []; }
   buildPads();
@@ -1649,7 +1652,9 @@ async function nextRound() {
     const btns = +$('optButtons').value, lv = $('optLevel').value, fm = $('optFormat').value;
     PIECE_MODE = $('optPieces').value;  // 駒の数は次の局から
     if (fm !== 'attack' && (btns !== G.buttons || lv !== G.level || fm !== G.format)) { G.buttons = btns; G.level = lv; G.format = fm; buildPads(); updateScores(); }
+    if (setKey() !== G.startSet) G.mixed = true;
   }
+  G.pieces = PIECE_MODE;  // この局の駒の数（ランクの秒数の倍率に使う）
   if (G.format === 'live') return startLive(curtain);
   G.pos = await makeQuestion();
   renderBoard();
@@ -1911,7 +1916,7 @@ async function finishRound(win, missed) {
   setPads('disabled', true);
   const pos = G.pos;
   if (win) {
-    const rank = G.format === 'live' ? rankOf(win.rt / Math.min(8, Math.max(1, pos.level))) : rankOf(win.rt, G.level);
+    const rank = G.format === 'live' ? rankOf(win.rt / Math.min(8, Math.max(1, pos.level)), 'intro', G.pieces) : rankOf(win.rt, G.level, G.pieces);
     G.streak[win.player]++;
     const bonus = streakBonus(G.streak[win.player]), bonusText = bonus ? `　${G.streak[win.player]}連続！ +${bonus}` : '';
     const noneBonus = pos.answer === 'none' ? NONE_BONUS : 0;
@@ -2019,13 +2024,14 @@ function showResult() {
   } else {
     $('resultTitle').textContent = `${G.scores[0]}点`;
     html = `正解 ${G.times[0].length} / ${G.total}問<br>平均 ${avg(G.times[0])}`;
-    const place = recordHigh(G.scores[0], G.times[0].length ? avg(G.times[0]) : null);
+    const place = G.mixed ? 0 : recordHigh(G.scores[0], G.times[0].length ? avg(G.times[0]) : null);
     const list = loadHighs()[highKey(G.format, G.level, G.total)];
+    if (G.mixed) html += '<br>途中で難易度か駒の数を変えたので、記録には残しません';
     html += place === 1 ? '<br><b class="high-new">ハイスコア更新！</b>' : place ? `<br><b style="color:#ffe27a">今回は${place}位</b>` : '';
-    html += `<div class="high-head">ハイスコア（${highLabel(G.format, G.level, G.total)}）</div>` + highTable(highKey(G.format, G.level, G.total), place ? list[place - 1].t : null);
+    if (!G.mixed) html += `<div class="high-head">ハイスコア（${highLabel(G.format, G.level, G.total)}）</div>` + highTable(highKey(G.format, G.level, G.total), place ? list[place - 1].t : null);
   }
   const b = Math.min(...[0, 1].map(i => best(G.times[i]) ?? Infinity));
-  if (isFinite(b)) {
+  if (isFinite(b) && !G.mixed) {
     const lvKey = G.format === 'live' ? 'live' : G.level;
     const key = (lvKey === 'intro' ? 'best-ms' : 'best-ms-' + lvKey) + (PIECE_MODE === 'many' ? '-many' : '');
     const rec = load(key, null);
@@ -2052,7 +2058,7 @@ function mateReason(pos) {
   const info = neighborInfo(pos);
   // 自分の駒が、本当なら逃げられたマス（相手の利きがない）をふさいでいるときだけ
   const B2 = pos.B.map(r => r.slice()); B2[an.k.r][an.k.c] = null;
-  if (info.some(n => n.type === 'own' && !attackers(B2, n.r, n.c, pos.a).length)) return '自分の駒が逃げ道をふさぐ';
+  if (info.some(n => n.type === 'own' && !attackers(B2, n.r, n.c, pos.a).length)) return '味方の駒が逃げ道をふさぐ';
   if (info.some(n => n.type === 'attacked' && n.far)) return '遠くの駒が逃げ道をにらむ';
   return '王手の駒に守りがある';
 }
@@ -3857,7 +3863,7 @@ function readSettings() {
 }
 function syncSettingsLabel(st) {
   const lv = {intro: '入門', 1: '初級', 3: '中級', 5: '上級'}[st.level];
-  return (st.format === 'live' ? `リアル対局リセット・${st.count}局` : `詰め将棋 ${lv}・${st.count}問`) + `・ボタン${st.buttons}つ・制限時間${st.limit ? st.limit / 1000 + '秒' : 'なし'}`;
+  return (st.format === 'live' ? `リアル対局リセット・${st.count}局` : `詰め将棋 ${lv}・${st.count}問`) + (st.pieces === 'many' ? '・駒多め' : '') + `・ボタン${st.buttons}つ・制限時間${st.limit ? st.limit / 1000 + '秒' : 'なし'}`;
 }
 function leaveRoom() {
   try { S.peer && S.peer.destroy(); } catch (e) {}
@@ -4009,8 +4015,8 @@ function hostDecide(missed = false) {
   if (!missed && R.presses.length) {
     const b = R.presses.reduce((x, y) => y.rt < x.rt ? y : x);
     let rank;
-    if (G.format === 'live') { const g = G.live.game; rank = rankOf(b.rt / Math.min(8, Math.max(1, g.moves.length - g.forcedIdx))); }
-    else rank = rankOf(b.rt, G.level);
+    if (G.format === 'live') { const g = G.live.game; rank = rankOf(b.rt / Math.min(8, Math.max(1, g.moves.length - g.forcedIdx)), 'intro', G.pieces); }
+    else rank = rankOf(b.rt, G.level, G.pieces);
     G.streak[b.idx]++;
     const bonus = streakBonus(G.streak[b.idx]);
     G.scores[b.idx] += rank + bonus + (G.pos.answer === 'none' ? NONE_BONUS : 0);
@@ -4071,6 +4077,7 @@ function syncStartGame(d) {
   setTimeout(warmEarth, 200);
   const st = d.st;
   PIECE_MODE = st.pieces || 'few';
+  G.pieces = PIECE_MODE;
   G.mode = 'sync'; G.format = st.format; G.level = st.level; G.total = st.count; G.buttons = st.buttons; G.limit = st.limit;
   const n = d.players.length;
   G.q = 0; G.streak = Array(n).fill(0); G.scores = Array(n).fill(0); G.times = Array.from({length: n}, () => []); G.rest = Array(n).fill(0); G.locked = Array(n).fill(false);
@@ -4261,7 +4268,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.20';
+const APP_VERSION = 'v1.0.21';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
