@@ -344,6 +344,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 .sb-chip{background:#08080c;border:2px solid #f8f8f0;padding:0 6px;white-space:nowrap}
 .sb-chip i{display:inline-block;width:8px;height:8px;margin-right:4px}
 .sb-chip.me{border-color:var(--gold);color:var(--gold)}.sb-chip.off{opacity:.55}
+.sb-st{color:var(--gold);margin-left:4px;font-weight:normal}
 .sb-chip em{font-style:normal;color:#ff7484;margin-left:4px}
 .app-ver{font-size:12px;color:#8890b0;margin-top:4px;letter-spacing:.1em}
 .lb-pend-head{margin-top:10px;font-size:14px;color:#ff9aab}
@@ -414,7 +415,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
       <b>【ボタン2つ】</b>手前の自分の王だけを見て、「自分が詰み」か「詰みなし」を答える。自分が詰まされたら、悔しさのあまり盤をひっくり返す<br>
       <b>【リアル対局リセット】</b>CPUどうしが1手ずつ指していく（ときどき長考する）。どちらかに詰みが生じたら（何手詰めでも）、その瞬間から詰まされる側のボタンを押せる。早すぎるとお手つき。難易度の設定は使わない<br>
       <b>【初級・中級・上級】</b>まだ詰んでいない局面で、攻める側の番だとして「1手（3手・5手）で詰ませられるか」を答える。王手を続けて詰ませる、ふつうの詰将棋のルール<br>
-      間違えるとお手つき。相手にドン引きされる。<br>      <b>【お手つき】</b>ひとりは−12点。ふたりは減点なしだが、その局と次の局は答えられない（勘で押すと損をする重さ）
+      間違えるとお手つき。相手にドン引きされる。<br>      <b>【連続正解ボーナス】</b>正解が続くと、2連続目は+1点、3連続目は+2点…と増える（6連続目以降は毎回+5点）。お手つきか、誰も答えずに時間切れになると途切れる<br>      <b>【お手つき】</b>ひとりは−5点。ふたりは減点なしだが、その局と次の局は答えられない（勘で押すと損をする重さ）
       <h3>▶ 駒の見分け方</h3>
       枠の色＝どちらの駒か（<span style="color:#8fd0ff">青＝手前の自分の駒</span>／<span style="color:#ff9aab">赤＝奥の相手の駒</span>）。中の色＝駒の種類。赤い文字は成った駒。
       <div class="legend" id="legend"></div>
@@ -819,8 +820,8 @@ function generate(kind, side) {
 }
 function generateQuestion(side, forceMate) {
   const x = forceMate ? 0 : Math.random();
-  // 詰みは約55％（多いほうが爽快だが、多すぎると「詰み」の連打が得になる）
-  const kind = x < 0.55 ? 'mate' : x < 0.8 ? 'trick' : x < 0.91 ? 'uchifu' : 'nocheck';
+  // 詰みが多いほうが爽快なので、詰みを約65％にする（連打は連続正解ボーナスで割に合わなくする）
+  const kind = x < 0.65 ? 'mate' : x < 0.85 ? 'trick' : x < 0.93 ? 'uchifu' : 'nocheck';
   return generate(kind, side) || generate('mate', side);
 }
 // ---------- N手詰め（初級＝1手詰め、中級＝3手詰め） ----------
@@ -1334,13 +1335,15 @@ const RANK_INFO = [
 const LEVEL_FACTOR = {intro: 1, 1: 2, 3: 4, 5: 6};
 // 入門の秒数（ミリ秒）。この秒数未満ならそのランク。ランク7が地球破壊
 const RANK_LIMITS = [[7, 800], [6, 1600], [5, 2500], [4, 3500], [3, 5000], [2, 10000]];
+// 連続正解ボーナス：2連続目+1、3連続目+2…、6連続目以降は毎回+5
+const streakBonus = n => Math.max(0, Math.min(n - 1, 5));
 function rankOf(ms, level = 'intro') {
   ms /= LEVEL_FACTOR[level] || 1;
   for (const [rank, lim] of RANK_LIMITS) if (ms < lim) return rank;
   return 1;
 }
 
-const G = {p5: null, rest: [0, 0], format: 'quiz', live: null, liveQ: null, paused: null, level: 'intro', buttons: 2, mode: 'solo', total: 10, q: 0, scores: [0, 0], times: [[], []], locked: [false, false], active: false, pos: null, t0: 0, timer: null};
+const G = {streak: [0, 0], p5: null, rest: [0, 0], format: 'quiz', live: null, liveQ: null, paused: null, level: 'intro', buttons: 2, mode: 'solo', total: 10, q: 0, scores: [0, 0], times: [[], []], locked: [false, false], active: false, pos: null, t0: 0, timer: null};
 
 function buildPads() {
   for (const i of [0, 1]) {
@@ -1353,7 +1356,7 @@ function buildPads() {
   }
 }
 function padMsg(i, text) { $('pad' + i).querySelector('.msg').textContent = text; }
-function updateScores() { for (const i of [0, 1]) $('pad' + i).querySelector('.score').textContent = `得点 ${G.scores[i]}`; }
+function updateScores() { for (const i of [0, 1]) $('pad' + i).querySelector('.score').textContent = `得点 ${G.scores[i]}` + (G.streak[i] >= 2 ? `（${G.streak[i]}連続）` : ''); }
 function setPads(cls, on) { for (const i of [0, 1]) $('pad' + i).classList.toggle(cls, on); }
 
 function layout() {
@@ -1402,7 +1405,7 @@ function startGame(mode) {
   G.level = $('optLevel').value;
   G.format = $('optFormat').value;
   buildPads();
-  G.q = 0; G.scores = [0, 0]; G.times = [[], []]; G.rest = [0, 0];
+  G.q = 0; G.scores = [0, 0]; G.times = [[], []]; G.rest = [0, 0]; G.streak = [0, 0];
   $('title').classList.add('hidden'); $('result').classList.add('hidden'); $('game').classList.remove('hidden');
   $('pad1').classList.toggle('hidden', mode !== 'duo');
   updateScores();
@@ -1458,7 +1461,7 @@ async function makeQuestionInner() {
   const side = G.buttons === 2 ? 0 : undefined;
   const forceMate = (G.noneStreak || 0) >= 2;  // 詰みなしは2問まで。3問目は必ず詰み
   if (G.level === 'intro') return generateQuestion(side, forceMate);
-  const n = +G.level, kind = forceMate || Math.random() < 0.58 ? 'mate' : 'trick';
+  const n = +G.level, kind = forceMate || Math.random() < 0.68 ? 'mate' : 'trick';
   const q = n === 5 ? await takePuzzle5(side, kind)
     : generateN(n, kind, side) || generateN(n, kind === 'mate' ? 'trick' : 'mate', side);
   if (!q) return generateQuestion(side, forceMate);
@@ -1646,11 +1649,12 @@ function press(player, choice, ts) {
   } else {
     sfx('wrong');
     G.locked[player] = true;
-    // ひとりは−12点（詰みは連続制限込みで約60％。「詰み」を連打しても平均で得をしない重さ）。ふたりは次の局が休み
-    if (G.mode === 'duo') G.rest[player] = 1; else G.scores[player] -= 12;
+    // ひとりは−5点、ふたりは次の局が休み。どちらも連続正解は途切れる
+    G.streak[player] = 0;
+    if (G.mode === 'duo') G.rest[player] = 1; else G.scores[player] -= 5;
     updateScores();
     $('pad' + player).classList.add('locked');
-    padMsg(player, G.mode === 'duo' ? 'お手つき！次の局は休み' : 'お手つき！ −12点');
+    padMsg(player, G.mode === 'duo' ? 'お手つき！次の局は休み' : 'お手つき！ −5点');
     const players = G.mode === 'duo' ? [0, 1] : [0];
     // 2ボタンの詰め将棋は、お手つきが出たら残りが1択になるので、その局はそこで終わり
     const allOut = foulEndsRound() || players.every(i => G.locked[i]);
@@ -1685,10 +1689,12 @@ async function finishRound(win, missed) {
   const pos = G.pos;
   if (win) {
     const rank = G.format === 'live' ? rankOf(win.rt / Math.min(8, Math.max(1, pos.level))) : rankOf(win.rt, G.level);
-    G.scores[win.player] += rank;
+    G.streak[win.player]++;
+    const bonus = streakBonus(G.streak[win.player]), bonusText = bonus ? `　${G.streak[win.player]}連続！ +${bonus}` : '';
+    G.scores[win.player] += rank + bonus;
     G.times[win.player].push(win.rt);
     updateScores();
-    padMsg(win.player, `正解！ ${(win.rt / 1000).toFixed(2)}秒`);
+    padMsg(win.player, `正解！ ${(win.rt / 1000).toFixed(2)}秒` + (bonus ? ` +${bonus}` : ''));
     $('timer').textContent = (win.rt / 1000).toFixed(2) + '秒';
     sfx('correct');
     if (pos.answer === 'none') await wait(250);
@@ -1696,12 +1702,13 @@ async function finishRound(win, missed) {
       await callCutin(win.player, win.call || callText(win.player), !!win.call);
       await hitStop();
       await RANK_INFO[rank].fn();
-      await banner(RANK_INFO[rank].name, (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${(win.rt / 1000).toFixed(2)}秒` + (G.format === 'live' ? 'で発見' : '') + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : ''), 1500, rank, `ランク${rank}`);
+      await banner(RANK_INFO[rank].name, (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${(win.rt / 1000).toFixed(2)}秒` + (G.format === 'live' ? 'で発見' : '') + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText, 1500, rank, `ランク${rank}`);
       await rewind();
     } else {
-      await banner(rank >= 6 ? '神速で見抜いた！！' : rank >= 5 ? '見抜いた！' : '見抜いた', `${(win.rt / 1000).toFixed(2)}秒` + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : ''), 1100, rank);
+      await banner(rank >= 6 ? '神速で見抜いた！！' : rank >= 5 ? '見抜いた！' : '見抜いた', `${(win.rt / 1000).toFixed(2)}秒` + (G.mode === 'duo' ? `（${PLAYER_NAMES[win.player]}）` : '') + bonusText, 1100, rank);
     }
   } else {
+    if (!missed) { G.streak = G.streak.map(() => 0); updateScores(); }  // 誰も答えずに時間切れなら、全員の連続が途切れる
     sfx('wrong');
     const ansText = CHOICES.find(c => c[0] === pos.answer)[1];
     await banner(missed ? 'お手つき…' : 'TIME UP', `正解は「${ansText}」`, 1300);
@@ -3593,6 +3600,7 @@ function hostOnPress(idx, d) {
   if (!d.correct) {
     R.fouled.add(idx);
     G.rest[idx] = 1;
+    G.streak[idx] = 0;
     const msg = {t: 'foul', idx};
     bc(msg); syncHandle(msg);
     hostCheckAllOut();
@@ -3624,10 +3632,12 @@ function hostDecide(missed = false) {
     let rank;
     if (G.format === 'live') { const g = G.live.game; rank = rankOf(b.rt / Math.min(8, Math.max(1, g.moves.length - g.forcedIdx))); }
     else rank = rankOf(b.rt, G.level);
-    G.scores[b.idx] += rank;
-    win = {idx: b.idx, rt: b.rt, rank, call: b.call};
-  }
-  const msg = {t: 'result', win, missed, scores: G.scores};
+    G.streak[b.idx]++;
+    const bonus = streakBonus(G.streak[b.idx]);
+    G.scores[b.idx] += rank + bonus;
+    win = {idx: b.idx, rt: b.rt, rank, call: b.call, bonus, streak: G.streak[b.idx]};
+  } else if (!missed) G.streak = G.streak.map(() => 0);  // 誰も答えずに時間切れ
+  const msg = {t: 'result', win, missed, scores: G.scores, streak: G.streak};
   bc(msg); syncHandle(msg);
 }
 
@@ -3683,7 +3693,7 @@ function syncStartGame(d) {
   const st = d.st;
   G.mode = 'sync'; G.format = st.format; G.level = st.level; G.total = st.count; G.buttons = st.buttons; G.limit = st.limit;
   const n = d.players.length;
-  G.q = 0; G.scores = Array(n).fill(0); G.times = Array.from({length: n}, () => []); G.rest = Array(n).fill(0); G.locked = Array(n).fill(false);
+  G.q = 0; G.streak = Array(n).fill(0); G.scores = Array(n).fill(0); G.times = Array.from({length: n}, () => []); G.rest = Array(n).fill(0); G.locked = Array(n).fill(false);
   G.syncFouled = new Set();
   ['title', 'lobby', 'result'].forEach(id => $(id).classList.add('hidden'));
   $('game').classList.remove('hidden');
@@ -3699,9 +3709,9 @@ function renderScoreboard() {
   if (G.mode !== 'sync') return;
   $('scoreboard').innerHTML = S.players.map((p, i) => {
     const st = p.gone ? '退出' : G.syncFouled && G.syncFouled.has(i) ? 'お手つき' : G.locked && G.locked[i] ? '休み' : '';
-    return `<span class="sb-chip${i === S.me ? ' me' : ''}${st ? ' off' : ''}"><i style="background:${PLAYER_COLORS[i]}"></i>${esc(p.name)} ${G.scores[i] ?? 0}${st ? `<em>${st}</em>` : ''}</span>`;
+    return `<span class="sb-chip${i === S.me ? ' me' : ''}${st ? ' off' : ''}"><i style="background:${PLAYER_COLORS[i]}"></i>${esc(p.name)} ${G.scores[i] ?? 0}${G.streak && G.streak[i] >= 2 ? `<b class="sb-st">${G.streak[i]}連</b>` : ''}${st ? `<em>${st}</em>` : ''}</span>`;
   }).join('');
-  $('pad0').querySelector('.score').textContent = `得点 ${G.scores[S.me] ?? 0}`;
+  $('pad0').querySelector('.score').textContent = `得点 ${G.scores[S.me] ?? 0}` + (G.streak && G.streak[S.me] >= 2 ? `（${G.streak[S.me]}連続）` : '');
 }
 async function syncBeginRound(d) {
   if (G.live) { G.live.over = true; G.live = null; }
@@ -3799,6 +3809,7 @@ async function syncFinish(d) {
   G.active = false;
   G.syncRoundOver = true;
   G.scores = d.scores;
+  if (d.streak) G.streak = d.streak;
   setPads('disabled', true);
   const L = G.live;
   if (L) { L.over = true; if (L.moving) await L.moving; }
@@ -3813,7 +3824,7 @@ async function syncFinish(d) {
     padMsg(0, mine ? `正解！ ${(w.rt / 1000).toFixed(2)}秒` : `${name} が正解`);
     sfx('correct');
     if (pos.answer === 'none') await wait(250);
-    const sub = (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${name} ${(w.rt / 1000).toFixed(2)}秒`;
+    const sub = (G.format === 'live' ? `${pos.level}手詰めを ` : '') + `${name} ${(w.rt / 1000).toFixed(2)}秒` + (w.bonus ? `　${w.streak}連続！ +${w.bonus}` : '');
     if (pos.answer !== 'none') {
       await syncCallCutin(w.idx, w.call || '詰んだ！', mine);
       await hitStop();
@@ -3868,7 +3879,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.7';
+const APP_VERSION = 'v1.0.8';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
