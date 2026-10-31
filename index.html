@@ -1309,7 +1309,7 @@ function rankOf(ms, level = 'intro') {
   return 1;
 }
 
-const G = {p5: null, rest: [0, 0], format: 'quiz', live: null, liveQ: null, paused: null, level: 'intro', buttons: 3, mode: 'solo', total: 10, q: 0, scores: [0, 0], times: [[], []], locked: [false, false], active: false, pos: null, t0: 0, timer: null};
+const G = {p5: null, rest: [0, 0], format: 'quiz', live: null, liveQ: null, paused: null, level: 'intro', buttons: 2, mode: 'solo', total: 10, q: 0, scores: [0, 0], times: [[], []], locked: [false, false], active: false, pos: null, t0: 0, timer: null};
 
 function buildPads() {
   for (const i of [0, 1]) {
@@ -2775,7 +2775,7 @@ function initCalls() {
   bgmSel.value = String(Math.round(BGM.volume * 100)); if (!bgmSel.value) bgmSel.value = '50';
   bgmSel.addEventListener('change', () => BGM.setVolume(+bgmSel.value / 100));
   const lim = $('optLimit'), btns = $('optButtons');
-  btns.value = String(load('buttons', 3)); if (!btns.value) btns.value = '3';
+  btns.value = String(load('buttons', 2)); if (!btns.value) btns.value = '2';  // 初めて開いたときは2ボタン（シンプルなので）
   const fmt = $('optFormat');
   fmt.value = load('format', 'quiz'); if (!fmt.value) fmt.value = 'quiz';
   // リアル対局リセットでは難易度を使わないので欄ごと隠し、「問題数」は「対局数」と呼ぶ
@@ -3828,7 +3828,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.5';
+const APP_VERSION = 'v1.0.6';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
