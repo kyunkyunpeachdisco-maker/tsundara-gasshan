@@ -592,7 +592,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
 const KANJI = {K:'玉',R:'飛',B:'角',G:'金',S:'銀',N:'桂',L:'香',P:'歩'};
 const PROMO = {R:'龍',B:'馬',S:'全',N:'圭',L:'杏',P:'と'};
 const RANKS = '一二三四五六七八九';
-// 駒の数：'few'（少なめ・8枚前後）／'many'（多め・20枚前後。勝負に関係ない駒を足して実戦の終盤らしく見せる）
+// 駒の数：'few'（少なめ・8枚前後）／'many'（多め・盤上に25〜30枚前後。勝負に関係ない駒を足して実戦の終盤らしく見せる）
 let PIECE_MODE = 'few';
 // 本物の将棋の枚数（盤上＋持ち駒の合計）
 const PIECE_MAX = {K: 2, R: 2, B: 2, G: 4, S: 4, N: 4, L: 4, P: 18};
@@ -895,7 +895,8 @@ function classify(pos) {
 function lastMoveOf(pos, an, wantDrop) {
   const {B, d, a} = pos, k = an.k || findKing(B, d);
   const inZone = r => a === 0 ? r <= 2 : r >= 6;
-  const tryPiece = (r, c, drop) => {
+  // accept(i, j)：元のマスの条件（ほかの確認を通った手の中から、さらに絞り込む）
+  const tryPiece = (r, c, drop, accept) => {
     const p = B[r][c];
     if (drop) {
       if (p.p || p.t === 'K' || isDead(p.t, false, a, r)) return null;
@@ -913,6 +914,7 @@ function lastMoveOf(pos, an, wantDrop) {
         if (!pieceHits(nb, i, j, pre, r, c)) continue;
         if (pre.t === 'K' && attackers(nb, i, j, d, true).length) continue;
         if (inCheck(nb, d)) continue;
+        if (accept && !accept(i, j)) continue;
         return {r, c, from: [i, j], drop: false};
       }
     }
@@ -927,7 +929,15 @@ function lastMoveOf(pos, an, wantDrop) {
   } else {
     const list = [];
     for (let i = 0; i < 9; i++) for (let j = 0; j < 9; j++) { const q = B[i][j]; if (q && q.s === a && q.t !== 'K') list.push([i, j]); }
-    for (const [i, j] of list.sort(() => Math.random() - 0.5)) { mv = tryPiece(i, j, false); if (mv) break; }
+    list.sort(() => Math.random() - 0.5);
+    // 王手がない局面でも「迫ってきた」感じが出るよう、守る側の玉に近づいた手（元のマスより今のマスのほうが玉に近い）を優先する
+    const dist = (r, c) => Math.max(Math.abs(r - k.r), Math.abs(c - k.c));
+    // 1. 玉の2マス以内に寄ってきた手 → 2. 玉に近づいた手 → 3. どの手でも
+    const tiers = [[(i, j) => dist(i, j) <= 2, (fi, fj, i, j) => dist(fi, fj) > dist(i, j)], [() => true, (fi, fj, i, j) => dist(fi, fj) > dist(i, j)], [() => true, null]];
+    for (const [near, ok] of tiers) {
+      for (const [i, j] of list) { if (!near(i, j)) continue; mv = tryPiece(i, j, false, ok && ((fi, fj) => ok(fi, fj, i, j))); if (mv) break; }
+      if (mv) break;
+    }
   }
   if (!mv) return null;
   const p = B[mv.r][mv.c];
@@ -4082,7 +4092,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.11';
+const APP_VERSION = 'v1.0.12';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
