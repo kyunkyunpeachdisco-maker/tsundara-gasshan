@@ -991,8 +991,8 @@ function generate(kind, side) {
   }
   return null;
 }
-function generateQuestion(side, forceMate) {
-  const x = forceMate ? 0 : Math.random();
+function generateQuestion(side, forceMate, forceNone) {
+  const x = forceMate ? 0 : forceNone ? 0.65 + Math.random() * 0.35 : Math.random();
   // 詰みが多いほうが爽快なので、詰みを約65％にする（連打は連続正解ボーナスで割に合わなくする）
   const kind = x < 0.65 ? 'mate' : x < 0.85 ? 'trick' : x < 0.93 ? 'uchifu' : 'nocheck';
   return generate(kind, side) || generate('mate', side);
@@ -1612,7 +1612,8 @@ function startGame(mode) {
   if (G.format === 'attack') G.format = 'quiz';
   if (G.attack) { G.total = Infinity; G.limit = 0; G.attackPieces = PIECE_MODE; G.clock = ATTACK.start * attackFactor(); G.miss = 0; G.endReason = null; G.missedList = []; }
   buildPads();
-  G.q = 0; G.scores = [0, 0]; G.times = [[], []]; G.rest = [0, 0]; G.streak = [0, 0];
+  G.q = 0; G.scores = [0, 0]; G.times = [[], []]; G.rest = [0, 0]; G.streak = [0, 0]; G.noneStreak = 0;
+  setPlan();
   showScreen('game');
   $('pad1').classList.toggle('hidden', mode !== 'duo');
   updateScores();
@@ -1668,19 +1669,37 @@ async function nextRound() {
   setPads('disabled', false);
   tickTimer();
 }
-async function makeQuestion() {
-  const q = await makeQuestionInner();
+// qi：この対局の何問目か（0から）
+async function makeQuestion(qi = G.q - 1) {
+  const q = await makeQuestionInner(qi);
   G.noneStreak = q.answer === 'none' ? (G.noneStreak || 0) + 1 : 0;
   return q;
 }
-async function makeQuestionInner() {
+// 問題数の決まった対局では、詰みか詰みなしかを始める前に全問ぶん決めておく。
+// 詰みなしが1問もない並びは引き直す（「詰み」の連打で満点が取れないように）。詰みなしは2問まで連続
+function makePlan(total, mateP) {
+  for (;;) {
+    const plan = [];
+    let streak = 0;
+    for (let i = 0; i < total; i++) {
+      const mate = streak >= 2 || Math.random() < mateP;
+      plan.push(mate ? 'mate' : 'none');
+      streak = mate ? 0 : streak + 1;
+    }
+    if (plan.includes('none')) return plan;
+  }
+}
+function setPlan() { G.plan = G.format === 'quiz' && isFinite(G.total) ? makePlan(G.total, G.level === 'intro' ? 0.65 : 0.6) : null; }
+async function makeQuestionInner(qi) {
   const side = G.buttons === 2 ? 0 : undefined;
-  const forceMate = (G.noneStreak || 0) >= 2;  // 詰みなしは2問まで。3問目は必ず詰み
-  if (G.level === 'intro') return generateQuestion(side, forceMate);
-  const n = +G.level, kind = forceMate || Math.random() < 0.6 ? 'mate' : 'trick';
+  const planned = G.plan && G.plan[qi];
+  const forceMate = planned ? planned === 'mate' : (G.noneStreak || 0) >= 2;  // 詰みなしは2問まで。3問目は必ず詰み
+  const forceNone = planned === 'none';
+  if (G.level === 'intro') return generateQuestion(side, forceMate, forceNone);
+  const n = +G.level, kind = forceMate || (!forceNone && Math.random() < 0.6) ? 'mate' : 'trick';
   const q = n === 5 ? await takePuzzle5(side, kind)
     : generateN(n, kind, side) || generateN(n, kind === 'mate' ? 'trick' : 'mate', side);
-  if (!q) return generateQuestion(side, forceMate);
+  if (!q) return generateQuestion(side, forceMate, forceNone);
   q.prompt = side != null
     ? (G.mode === 'duo' ? `${q.a === 0 ? '▲' : '△'}2Pの番：<b>1Pの王に${n}手詰めはある？</b>` : `${q.a === 0 ? '▲' : '△'}相手の番：<b>自分の王に${n}手詰めはある？</b>`)
     : (G.mode === 'duo' ? `<b>1Pか2P、どちらかの王に${n}手詰めはある？</b>` : `<b>自分か相手、どちらかに${n}手詰めはある？</b>`);
@@ -3988,7 +4007,7 @@ async function hostNextRound() {
     const schedule = game.moves.map(() => Math.random() < 0.25 ? rr(2500, 5000) : rr(700, 1300));
     msg = {t: 'round', q, resting, live: {game, schedule}, startAt: performance.now() + 2000};
   } else {
-    const pos = await makeQuestion();
+    const pos = await makeQuestion(q - 1);  // ホストの G.q は、この局を配ってから進む
     msg = {t: 'round', q, resting, pos, startAt: performance.now() + 2000};
   }
   S.round = {q, decided: false, presses: [], fouled: new Set(), resting: new Set(resting), timer: null};
@@ -4101,6 +4120,8 @@ function syncStartGame(d) {
   const n = d.players.length;
   G.q = 0; G.streak = Array(n).fill(0); G.scores = Array(n).fill(0); G.times = Array.from({length: n}, () => []); G.rest = Array(n).fill(0); G.locked = Array(n).fill(false);
   G.syncFouled = new Set();
+  G.noneStreak = 0;
+  if (S.host) setPlan();
   ['title', 'lobby', 'result'].forEach(id => $(id).classList.add('hidden'));
   $('game').classList.remove('hidden');
   $('pad1').classList.add('hidden');
@@ -4345,7 +4366,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.26';
+const APP_VERSION = 'v1.0.27';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
