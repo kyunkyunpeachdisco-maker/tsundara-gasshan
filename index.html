@@ -3869,12 +3869,19 @@ function renderRoom() {
   if (S.host) {
     const url = `${location.origin}${location.pathname}?room=${S.code}`;
     body.innerHTML = `<div class="lb-code">部屋番号 <b>${S.code}</b></div><div id="lbQR" class="lb-qr"></div>
-      <p class="lb-note">スマホのカメラでQRコードを読むか、部屋番号を入れて参加。参加にはホストの許可が要ります</p>
+      <p><button id="lbInvite" style="font-family:'DotGothic16',monospace;font-size:15px;padding:4px 12px;border:2px solid #08080c;color:#fff;background:#2c5cd8">招待リンクを送る</button> <span class="lb-note" id="lbInvNote"></span></p>
+      <p class="lb-note">招待リンクを送るか、スマホのカメラでQRコードを読むか、部屋番号を入れて参加。参加にはホストの許可が要ります</p>
       <p class="lb-set">${esc(syncSettingsLabel(readSettings()))}</p>
       <ul class="lb-players">${list}</ul>
       ${S.pending.length ? `<div class="lb-pend-head">参加の申し込み</div><ul class="lb-pending">${S.pending.map((x, i) =>
         `<li><span>${esc(x.name)}</span><button data-ok="1" data-i="${i}">許可</button><button data-ok="0" data-i="${i}">断る</button></li>`).join('')}</ul>` : ''}`;
     body.querySelectorAll('.lb-pending button').forEach(b => b.onclick = () => hostApprove(+b.dataset.i, b.dataset.ok === '1'));
+    // 招待リンク：スマホなら共有の画面（LINE など）を開き、なければリンクをコピーする
+    $('lbInvite').onclick = async () => {
+      const note = t => { if ($('lbInvNote')) $('lbInvNote').textContent = t; };
+      try { if (navigator.share) { await navigator.share({title: document.title, text: `部屋 ${S.code} に参加してください`, url}); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+      try { await navigator.clipboard.writeText(url); note('リンクをコピーしました'); } catch (e) { note(url); }
+    };
     loadQR().then(() => {
       const q = qrcode(0, 'M'); q.addData(url); q.make();
       if ($('lbQR')) $('lbQR').innerHTML = q.createImgTag(5, 8);
@@ -4366,7 +4373,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.27';
+const APP_VERSION = 'v1.0.28';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
