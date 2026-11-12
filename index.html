@@ -600,6 +600,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
     <div class="set-note" id="setNote">モード・ボタン数・難易度は、次の局から変わります。</div>
     <div class="set-btns">
       <button class="arc-btn c1" id="setClose">対局に戻る</button>
+      <button class="arc-btn c3 hidden" id="setLobby">同じメンバーでロビーに戻る</button>
       <button class="arc-btn c2" id="setTitle">タイトルに戻る</button>
     </div>
   </div>
@@ -3995,7 +3996,9 @@ function hostStart() {
   hostNextRound();
 }
 async function hostNextRound() {
+  if (!S.started) return;
   if (S.round && !S.round.decided) return;
+  const gen = S.gen;
   if (G.q >= G.total) {
     const msg = {t: 'end', scores: G.scores};
     bc(msg); syncHandle(msg);
@@ -4017,6 +4020,7 @@ async function hostNextRound() {
     const pos = await makeQuestion(q - 1);  // ホストの G.q は、この局を配ってから進む
     msg = {t: 'round', q, resting, pos, startAt: performance.now() + 2000};
   }
+  if (gen !== S.gen) return;  // 問題を作っている間に、対局をやめていた
   S.round = {q, decided: false, presses: [], fouled: new Set(), resting: new Set(resting), timer: null};
   bc(msg);
   syncHandle(msg);
@@ -4044,7 +4048,7 @@ function foulEndsRound() { return G.mode !== 'sync' && G.format !== 'live' && G.
 function hostCheckAllOut() {
   const R = S.round;
   if (!R.presses.length && foulEndsRound() && R.fouled.size) {
-    if (!R.closing) { R.closing = true; bc({t: 'closing'}); syncHandle({t: 'closing'}); setTimeout(() => hostDecide(true), 2300); }
+    if (!R.closing) { R.closing = true; bc({t: 'closing'}); syncHandle({t: 'closing'}); const gen = S.gen; setTimeout(() => { if (gen === S.gen) hostDecide(true); }, 2300); }
     return;
   }
   const active = S.players.map((p, i) => i).filter(i => !S.players[i].gone && !R.resting.has(i));
@@ -4117,6 +4121,7 @@ function syncHandle(d) {
   else if (d.t === 'result') syncFinish(d);
   else if (d.t === 'voice' || d.t === 'voice-clear') syncVoiceData(d);
   else if (d.t === 'end') showSyncResult(d);
+  else if (d.t === 'abort') syncAbort();
 }
 function syncStartGame(d) {
   setTimeout(warmEarth, 200);
@@ -4149,6 +4154,7 @@ function renderScoreboard() {
   $('pad0').querySelector('.score').textContent = `得点 ${G.scores[S.me] ?? 0}` + (G.streak && G.streak[S.me] >= 2 ? `（${G.streak[S.me]}連続）` : '');
 }
 async function syncBeginRound(d) {
+  const gen = S.gen;
   if (G.live) { G.live.over = true; G.live = null; }
   endExplain();
   clearFx();
@@ -4175,7 +4181,7 @@ async function syncBeginRound(d) {
   // ホストが決めた時刻に、全員そろって盤面を出す
   const start = toLocal(d.startAt);
   await waitUntil(start);
-  if (G.q !== d.q) return;
+  if (G.q !== d.q || gen !== S.gen) return;
   curtain.classList.add('hidden');
   await raf2();
   G.t0 = performance.now();
@@ -4297,6 +4303,7 @@ function syncPress(choice, ts) {
   })();
 }
 async function syncFinish(d) {
+  const gen = S.gen, dead = () => gen !== S.gen;  // 演出の途中で対局をやめたら、続きを出さない
   G.active = false;
   G.syncRoundOver = true;
   G.scores = d.scores;
@@ -4304,6 +4311,7 @@ async function syncFinish(d) {
   setPads('disabled', true);
   const L = G.live;
   if (L) { L.over = true; if (L.moving) await L.moving; }
+  if (dead()) return;
   clearFx();
   if (L) G.pos = finalizeLive(L);
   renderBoard();
@@ -4319,10 +4327,14 @@ async function syncFinish(d) {
       if (fxShort() && !mine) playRemoteVoice(w.idx, w.call);  // 技なしでも、声だけは鳴らす
       if (!fxShort()) {
         await syncCallCutin(w.idx, w.call || '詰んだ！', mine);
+        if (dead()) return;
         await hitStop();
+        if (dead()) return;
         await RANK_INFO[w.rank].fn();
+        if (dead()) return;
       }
       await banner(RANK_INFO[w.rank].name, `<b class="plus">+${w.rank + (w.bonus || 0)}点</b><br>` + sub, fxShort() ? 700 : 1500, w.rank, `ランク${w.rank}`);
+      if (dead()) return;
       if (!fxShort()) await rewind();
     } else await mikiri(sub, w.rank + (w.bonus || 0) + NONE_BONUS);
   } else {
@@ -4330,7 +4342,8 @@ async function syncFinish(d) {
     const ansText = (G.buttons === 2 ? CHOICES_TWO : CHOICES).concat(CHOICES).find(c => c[0] === pos.answer)[1];
     await banner(d.missed ? (foulEndsRound() ? 'お手つき…' : '全員お手つき…') : 'TIME UP', `正解は「${ansText}」`, 1300);
   }
-  if (noExplain(!!d.win)) { if (S.host) { await wait(1200); hostNextRound(); } return; }
+  if (dead()) return;
+  if (noExplain(!!d.win)) { if (S.host) { await wait(1200); if (!dead()) hostNextRound(); } return; }
   await explain();
 }
 // 決め台詞：勝った人の名前と色で出す。勝った本人の端末では録音の声、ほかの端末では読み上げ
@@ -4362,6 +4375,24 @@ function showSyncResult(d) {
     `<tr class="${o.i === S.me ? 'me' : ''}"><td>${k + 1}位</td><td><span class="pidx" style="background:${PLAYER_COLORS[o.i]}">${o.i + 1}</span>${esc(o.p.name)}</td><td>${o.s}点</td></tr>`).join('') + '</table>';
   $('againBtn').textContent = S.host ? '同じメンバーでもう一度' : 'ロビーに戻る';
 }
+// 対局の途中でやめて、同じメンバーのままロビーに戻る（ホストが設定の画面から。タイトルに戻ると部屋が閉じてしまうため）
+function hostAbort() {
+  if (!S.host || !S.started) return;
+  if (S.round && S.round.timer) clearTimeout(S.round.timer);
+  const msg = {t: 'abort'};
+  bc(msg); syncHandle(msg);
+}
+function syncAbort() {
+  S.gen = (S.gen || 0) + 1;
+  if (G.live) { G.live.over = true; G.live = null; }
+  G.active = false; G.syncRoundOver = true; G.q = -1;
+  endExplain(); clearFx();
+  cutinLayer.innerHTML = '';
+  if (!$('settings').classList.contains('hidden')) { disarmTitle(); disarmLobby(); closeSettings(); }
+  $('curtain').classList.add('hidden');
+  ['game', 'result'].forEach(id => $(id).classList.add('hidden'));
+  syncAgain();
+}
 function syncAgain() {
   $('againBtn').textContent = 'もう一度';
   S.started = false; S.round = null;
@@ -4373,7 +4404,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.28';
+const APP_VERSION = 'v1.0.29';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
@@ -4428,6 +4459,7 @@ function openSettings() {
     curtain.innerHTML = '<div class="st goldtext">一時停止</div><div class="rd">設定を閉じると再開</div>';
     curtain.classList.remove('hidden');
   }
+  $('setLobby').classList.toggle('hidden', !(G.mode === 'sync' && S.host && S.started));
   setHome = SET_PARTS.map(id => { const el = $(id); return {el, parent: el.parentNode, next: el.nextSibling}; });
   SET_PARTS.forEach(id => $('setBody').appendChild($(id)));
   $('settings').classList.remove('hidden');
@@ -4445,7 +4477,15 @@ function closeSettings() {
   }
 }
 $('menuBtn').addEventListener('click', () => { sfx('tap'); openSettings(); });
-$('setClose').addEventListener('click', () => { sfx('tap'); disarmTitle(); closeSettings(); });
+$('setClose').addEventListener('click', () => { sfx('tap'); disarmTitle(); disarmLobby(); closeSettings(); });
+let lobbyArmed = null;
+function disarmLobby() { clearTimeout(lobbyArmed); lobbyArmed = null; $('setLobby').textContent = '同じメンバーでロビーに戻る'; }
+$('setLobby').addEventListener('click', () => {
+  if (lobbyArmed) { disarmLobby(); hostAbort(); return; }
+  sfx('tap');
+  $('setLobby').textContent = '対局をやめる？（もう一度押す）';
+  lobbyArmed = setTimeout(disarmLobby, 3000);
+});
 // 演出の途中でも確実に止められるよう、読み込み直してタイトルへ戻る（設定は保存済み）
 // iPhone の Safari では confirm() が出ないことがあるので、ボタン自体で2回押しの確認をする
 let titleArmed = null;
