@@ -490,7 +490,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
         </ul>
         <p>初級から上級は、<span class="phr">攻める側の番として考える。</span><span class="phr">王手を続けて詰ませる、</span><span class="phr">ふつうの詰将棋のルール。</span></p>
         <h3>▶ リアル対局リセット</h3>
-        <p>CPUどうしが<span class="phr">1手ずつ指していく。</span><span class="phr">どちらかの王が詰んだら</span><span class="phr">（何手詰めでも）、</span><span class="phr">その瞬間から押せる。</span><span class="phr">早すぎるとお手つき。</span></p>
+        <p>CPUどうしが<span class="phr">1手ずつ指していく。</span><span class="phr">どちらかの王に詰みが生じたら</span><span class="phr">（何手詰めでも）、</span><span class="phr">詰まされる側のボタンを押す。</span><span class="phr">詰み上がるのを待たず、</span><span class="phr">詰み筋ができた瞬間から押せる。</span><span class="phr">早すぎるとお手つき。</span></p>
         <h3>▶ 演出・駒の数</h3>
         <ul class="hl">
           <li>・<b>演出</b>：<span class="phr">技（盤を壊す演出）と解説を</span><span class="phr">出すかどうかを選べる。</span><span class="phr">「デフォルト」は技を出し、</span><span class="phr">外したときだけ解説を出す。</span><span class="phr">「すぐ次へ」は</span><span class="phr">どちらもとばして次の問題へ</span></li>
@@ -3240,6 +3240,8 @@ function initCalls() {
     $('lblLimit').style.display = attack ? 'none' : '';
     $('countLabel').textContent = live ? '対局数' : '問題数';
     [...$('optCount').options].forEach(o => { o.textContent = o.value + (live ? '局' : '問'); });
+    // リアル対局リセットには「詰みなし」ボタンがないので、実際に出るボタンの数で呼ぶ
+    [...btns.options].forEach(o => { o.textContent = live ? (o.value === '3' ? '2つ（自分・相手）' : '1つ（自分が詰み）') : (o.value === '3' ? '3つ（どっちが詰み？）' : '2つ（自分が詰みか？）'); });
   };
   fmt.addEventListener('change', () => { save('format', fmt.value); syncLevelOpt(); });
   syncLevelOpt();
@@ -3901,7 +3903,7 @@ function readSettings() {
 }
 function syncSettingsLabel(st) {
   const lv = {intro: '入門', 1: '初級', 3: '中級', 5: '上級'}[st.level];
-  return (st.format === 'live' ? `リアル対局リセット・${st.count}局` : `詰め将棋 ${lv}・${st.count}問`) + (st.pieces === 'many' ? '・駒多め' : '') + `・ボタン${st.buttons}つ・制限時間${st.limit ? st.limit / 1000 + '秒' : 'なし'}`;
+  return (st.format === 'live' ? `リアル対局リセット・${st.count}局` : `詰め将棋 ${lv}・${st.count}問`) + (st.pieces === 'many' ? '・駒多め' : '') + `・ボタン${st.format === 'live' ? st.buttons - 1 : st.buttons}つ・制限時間${st.limit ? st.limit / 1000 + '秒' : 'なし'}`;
 }
 function leaveRoom() {
   try { S.peer && S.peer.destroy(); } catch (e) {}
@@ -4404,7 +4406,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.29';
+const APP_VERSION = 'v1.0.30';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
