@@ -4086,7 +4086,7 @@ async function syncJoin(code) {
   S.host = false; S.code = code;
   S.peer.on('error', e => { if (e.type === 'peer-unavailable') syncLost('部屋が見つかりません。番号を確かめてください'); });
   const conn = S.hostConn = S.peer.connect(peerIdOf(code), {metadata: {name: myName()}, serialization: 'json', reliable: true});
-  const timeout = setTimeout(() => { if (!conn.open) syncLost('部屋に接続できませんでした'); }, 10000);
+  const timeout = setTimeout(() => { if (!conn.open) syncLost('部屋に接続できませんでした'); }, 30000);  // スマホ回線は中継経由になり、つながるまで時間がかかることがある
   conn.on('open', () => clearTimeout(timeout));
   conn.on('data', d => guestOnData(d));
   conn.on('close', () => syncLost());
@@ -4406,7 +4406,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.30';
+const APP_VERSION = 'v1.0.31';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
