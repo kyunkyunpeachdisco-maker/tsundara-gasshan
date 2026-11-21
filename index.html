@@ -517,7 +517,7 @@ select,.opt-row select,#setBody select,.call-row select,.call-row input{border-r
         <ul class="hl">
           <li>・<b>連続正解</b>：<span class="phr">2連続目は+1点、</span><span class="phr">3連続目は+2点…と増える</span><span class="phr">（最大+5点）。</span><span class="phr">お手つきか、</span><span class="phr">誰も答えずに時間切れになると</span><span class="phr">途切れる</span></li>
           <li>・<b>見切り</b>：<span class="phr">詰みなしを当てると+3点</span></li>
-          <li>・<b>お手つき</b>：<span class="phr">ひとりのときは−5点。</span><span class="phr">ふたり以上のときは減点なしで、</span><span class="phr">その局と次の局は答えられない</span></li>
+          <li>・<b>お手つき</b>：<span class="phr">−5点。</span><span class="phr">ふたり以上のときは、</span><span class="phr">さらにその局と次の局は</span><span class="phr">答えられない</span></li>
         </ul>
       </div>
       <div class="hpage">
@@ -1900,10 +1900,10 @@ function press(player, choice, ts) {
       if (G.miss >= ATTACK.maxMiss) G.endReason = 'miss'; else if (G.clock <= 0) G.endReason = 'time';
       attackHUD();
       $('timer').textContent = attackTimerText(G.clock);
-    } else if (G.mode === 'duo') G.rest[player] = 1; else G.scores[player] -= 5;
+    } else { G.scores[player] -= 5; if (G.mode === 'duo') G.rest[player] = 1; }  // ふたりで対局は、減点に加えて次の局も休み
     updateScores();
     $('pad' + player).classList.add('locked');
-    padMsg(player, G.attack ? `ミス！ −${ATTACK.penalty * attackFactor() / 1000}秒` : G.mode === 'duo' ? 'お手つき！次の局は休み' : 'お手つき！ −5点');
+    padMsg(player, G.attack ? `ミス！ −${ATTACK.penalty * attackFactor() / 1000}秒` : G.mode === 'duo' ? 'お手つき！ −5点・次の局は休み' : 'お手つき！ −5点');
     const players = G.mode === 'duo' ? [0, 1] : [0];
     // 2ボタンの詰め将棋は、お手つきが出たら残りが1択になるので、その局はそこで終わり
     const allOut = foulEndsRound() || players.every(i => G.locked[i]);
@@ -4034,7 +4034,8 @@ function hostOnPress(idx, d) {
     R.fouled.add(idx);
     G.rest[idx] = 1;
     G.streak[idx] = 0;
-    const msg = {t: 'foul', idx};
+    G.scores[idx] -= 5;  // 減点がないと、勘の即押しが考えて答えるより得になる
+    const msg = {t: 'foul', idx, scores: G.scores};
     bc(msg); syncHandle(msg);
     hostCheckAllOut();
     return;
@@ -4118,7 +4119,7 @@ function syncHandle(d) {
     if (!S.started) { if (!S.host) renderRoom(); } else renderScoreboard();
   } else if (d.t === 'start') { if (!S.host) { S.started = true; S.players = d.players; syncStartGame(d); } }
   else if (d.t === 'round') syncBeginRound(d);
-  else if (d.t === 'foul') { G.syncFouled.add(d.idx); renderScoreboard(); }
+  else if (d.t === 'foul') { G.syncFouled.add(d.idx); if (d.scores) G.scores = d.scores; renderScoreboard(); }
   else if (d.t === 'closing') { G.active = false; setPads('disabled', true); }  // 2ボタンでお手つきが出たので、ほかの人も押せなくする
   else if (d.t === 'result') syncFinish(d);
   else if (d.t === 'voice' || d.t === 'voice-clear') syncVoiceData(d);
@@ -4293,7 +4294,7 @@ function syncPress(choice, ts) {
   sfx('wrong');
   G.locked[S.me] = true;
   $('pad0').classList.add('locked');
-  padMsg(0, 'お手つき！次の局は休み');
+  padMsg(0, 'お手つき！ −5点・次の局は休み');
   (async () => {
     if (L) { L.paused = true; if (L.moving) await L.moving; }
     if (fxShort()) { shake(250, 8); await wait(400); }
@@ -4342,7 +4343,7 @@ async function syncFinish(d) {
   } else {
     sfx('wrong');
     const ansText = (G.buttons === 2 ? CHOICES_TWO : CHOICES).concat(CHOICES).find(c => c[0] === pos.answer)[1];
-    await banner(d.missed ? (foulEndsRound() ? 'お手つき…' : '全員お手つき…') : 'TIME UP', `正解は「${ansText}」`, 1300);
+    await banner(d.missed ? (foulEndsRound() ? 'お手つき…' : '正解者なし…') : 'TIME UP', `正解は「${ansText}」`, 1300);
   }
   if (dead()) return;
   if (noExplain(!!d.win)) { if (S.host) { await wait(1200); if (!dead()) hostNextRound(); } return; }
@@ -4406,7 +4407,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.31';
+const APP_VERSION = 'v1.0.32';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
