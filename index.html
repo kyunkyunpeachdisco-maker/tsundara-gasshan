@@ -3961,6 +3961,13 @@ function hostOnConn(conn) {
       syncVoiceData(m);
     }
   });
+  const wait = () => {
+    const p = S.players.find(p => p.conn === conn);
+    if (!p || p.gone || !conn.open) return;
+    hostBroadcastPlayers();
+    if (conn.lost && S.round && !S.round.decided && S.round.fouled) hostCheckAllOut();
+  };
+  conn.on('lost', wait); conn.on('back', wait);
   conn.on('close', () => {
     const w = S.pending.findIndex(x => x.conn === conn);
     if (w >= 0) { S.pending.splice(w, 1); if (!S.started) renderRoom(); return; }
@@ -3988,7 +3995,7 @@ function hostApprove(i, ok) {
 }
 function bc(msg) { S.players.forEach(p => { if (p.conn && !p.gone && p.conn.open) p.conn.send(msg); }); }
 function hostBroadcastPlayers() {
-  const players = S.players.map(p => ({name: p.name, gone: !!p.gone}));
+  const players = S.players.map(p => ({name: p.name, gone: !!p.gone, lost: !!(p.conn && p.conn.lost)}));
   bc({t: 'players', players});
   if (!S.started) renderRoom(); else renderScoreboard();
 }
@@ -4015,30 +4022,30 @@ async function hostNextRound() {
   let resting = live.filter(i => G.rest[i]);
   if (resting.length >= live.length) resting = [];
   G.rest = G.rest.map(() => 0);
-  const q = G.q + 1;
+  const q = G.q + 1, rid = S.rid = (S.rid || 0) + 1;
   let msg;
   if (G.format === 'live') {
     const game = await takeLiveGame(liveSide());
     const schedule = game.moves.map(() => Math.random() < 0.25 ? rr(2500, 5000) : rr(700, 1300));
-    msg = {t: 'round', q, resting, live: {game, schedule}, startAt: performance.now() + 2000};
+    msg = {t: 'round', q, rid, resting, live: {game, schedule}, startAt: performance.now() + 2000};
   } else {
     const pos = await makeQuestion(q - 1);  // ホストの G.q は、この局を配ってから進む
-    msg = {t: 'round', q, resting, pos, startAt: performance.now() + 2000};
+    msg = {t: 'round', q, rid, resting, pos, startAt: performance.now() + 2000};
   }
   if (gen !== S.gen) return;  // 問題を作っている間に、対局をやめていた
-  S.round = {q, decided: false, presses: [], fouled: new Set(), resting: new Set(resting), timer: null};
+  S.round = {q, rid, decided: false, presses: [], fouled: new Set(), resting: new Set(resting), timer: null};
   bc(msg);
   syncHandle(msg);
 }
 function hostOnPress(idx, d) {
   const R = S.round;
-  if (!R || R.decided || R.closing || R.resting.has(idx) || R.fouled.has(idx)) return;
+  if (!R || R.decided || R.closing || (d.rid !== undefined && d.rid !== R.rid) || R.resting.has(idx) || R.fouled.has(idx)) return;
   if (!d.correct) {
     R.fouled.add(idx);
     G.rest[idx] = 1;
     G.streak[idx] = 0;
     G.scores[idx] -= 5;  // 減点がないと、勘の即押しが考えて答えるより得になる
-    const msg = {t: 'foul', idx, scores: G.scores};
+    const msg = {t: 'foul', idx, rid: R.rid, scores: G.scores};
     bc(msg); syncHandle(msg);
     hostCheckAllOut();
     return;
@@ -4054,10 +4061,10 @@ function foulEndsRound() { return G.mode !== 'sync' && G.format !== 'live' && G.
 function hostCheckAllOut() {
   const R = S.round;
   if (!R.presses.length && foulEndsRound() && R.fouled.size) {
-    if (!R.closing) { R.closing = true; bc({t: 'closing'}); syncHandle({t: 'closing'}); const gen = S.gen; setTimeout(() => { if (gen === S.gen) hostDecide(true); }, 2300); }
+    if (!R.closing) { R.closing = true; bc({t: 'closing', rid: R.rid}); syncHandle({t: 'closing', rid: R.rid}); const gen = S.gen; setTimeout(() => { if (gen === S.gen) hostDecide(true); }, 2300); }
     return;
   }
-  const active = S.players.map((p, i) => i).filter(i => !S.players[i].gone && !R.resting.has(i));
+  const active = S.players.map((p, i) => i).filter(i => !S.players[i].gone && !(S.players[i].conn && S.players[i].conn.lost) && !R.resting.has(i));
   if (!R.presses.length && active.every(i => R.fouled.has(i))) hostDecide(true);
 }
 function hostDecide(missed = false) {
@@ -4076,7 +4083,7 @@ function hostDecide(missed = false) {
     G.scores[b.idx] += rank + bonus + (G.pos.answer === 'none' ? NONE_BONUS : 0);
     win = {idx: b.idx, rt: b.rt, rank, call: b.call, bonus, streak: G.streak[b.idx]};
   } else if (!missed) G.streak = G.streak.map(() => 0);  // 誰も答えずに時間切れ
-  const msg = {t: 'result', win, missed, scores: G.scores, streak: G.streak};
+  const msg = {t: 'result', rid: R.rid, win, missed, scores: G.scores, streak: G.streak};
   bc(msg); syncHandle(msg);
 }
 
@@ -4100,14 +4107,14 @@ async function syncClock() {
   let best = null;
   for (let i = 0; i < 8; i++) {
     const t0 = performance.now();
-    const pong = await new Promise(res => { S.pongWait = res; S.hostConn.send({t: 'ping', t0}); setTimeout(() => res(null), 2000); });
+    const pong = await new Promise(res => { S.pongWait = res; S.pingT0 = t0; S.hostConn.send({t: 'ping', t0}); setTimeout(() => res(null), 2000); });
     const t1 = performance.now();
     if (pong && (!best || t1 - t0 < best.rtt)) best = {rtt: t1 - t0, offset: pong.h + (t1 - t0) / 2 - t1};
   }
   if (best) S.offset = best.offset;
 }
 function guestOnData(d) {
-  if (d.t === 'pong') { if (S.pongWait) { S.pongWait(d); S.pongWait = null; } return; }
+  if (d.t === 'pong') { if (S.pongWait && d.t0 === S.pingT0) { S.pongWait(d); S.pongWait = null; } return; }
   if (d.t === 'full') return syncLost(d.started ? 'この部屋はもう始まっています' : '部屋がいっぱいです（6人まで）');
   if (d.t === 'waiting') { showLobby('wait', `部屋 ${S.code} のホストの許可を待っています…`); return; }
   if (d.t === 'rejected') return syncLost('ホストに参加を断られました');
@@ -4122,6 +4129,7 @@ function syncHandle(d) {
     if (!S.started) { if (!S.host) renderRoom(); } else renderScoreboard();
   } else if (d.t === 'start') { if (!S.host) { S.started = true; S.players = d.players; syncStartGame(d); } }
   else if (d.t === 'round') syncBeginRound(d);
+  else if (d.rid !== undefined && d.t !== 'round' && d.rid !== G.rid) { if (d.scores) { G.scores = d.scores; renderScoreboard(); } }  // 前の局の知らせが遅れて届いた
   else if (d.t === 'foul') { G.syncFouled.add(d.idx); if (d.scores) G.scores = d.scores; renderScoreboard(); }
   else if (d.t === 'closing') { G.active = false; setPads('disabled', true); }  // 2ボタンでお手つきが出たので、ほかの人も押せなくする
   else if (d.t === 'result') syncFinish(d);
@@ -4154,7 +4162,7 @@ function syncStartGame(d) {
 function renderScoreboard() {
   if (G.mode !== 'sync') return;
   $('scoreboard').innerHTML = S.players.map((p, i) => {
-    const st = p.gone ? '退出' : G.syncFouled && G.syncFouled.has(i) ? 'お手つき' : G.locked && G.locked[i] ? '休み' : '';
+    const st = p.gone ? '退出' : p.lost || (p.conn && p.conn.lost) ? 'つなぎ直し中' : G.syncFouled && G.syncFouled.has(i) ? 'お手つき' : G.locked && G.locked[i] ? '休み' : '';
     return `<span class="sb-chip${i === S.me ? ' me' : ''}${st ? ' off' : ''}"><i style="background:${PLAYER_COLORS[i]}"></i>${esc(p.name)} ${G.scores[i] ?? 0}${G.streak && G.streak[i] >= 2 ? `<b class="sb-st">${G.streak[i]}連</b>` : ''}${st ? `<em>${st}</em>` : ''}</span>`;
   }).join('');
   $('pad0').querySelector('.score').textContent = `得点 ${G.scores[S.me] ?? 0}` + (G.streak && G.streak[S.me] >= 2 ? `（${G.streak[S.me]}連続）` : '');
@@ -4166,7 +4174,7 @@ async function syncBeginRound(d) {
   clearFx();
   G.syncRoundOver = false;
   G.syncFouled = new Set();
-  G.q = d.q;
+  G.q = d.q; G.rid = d.rid;
   G.locked = G.scores.map((_, i) => d.resting.includes(i));
   setPads('locked', false); setPads('disabled', true);
   $('pad0').classList.toggle('locked', G.locked[S.me]);
@@ -4187,8 +4195,9 @@ async function syncBeginRound(d) {
   // ホストが決めた時刻に、全員そろって盤面を出す
   const start = toLocal(d.startAt);
   await waitUntil(start);
-  if (G.q !== d.q || gen !== S.gen) return;
+  if (G.q !== d.q || G.rid !== d.rid || gen !== S.gen) return;
   curtain.classList.add('hidden');
+  if (G.syncRoundOver) return;  // 途切れている間に、この局は終わっていた
   await raf2();
   G.t0 = performance.now();
   G.active = true;
@@ -4285,7 +4294,7 @@ function syncPress(choice, ts) {
   const rt = Math.max(0, ts - (L ? L.mateT : G.t0));
   const call = callText(0);
   if (correct && (L || G.pos.answer !== 'none')) { sfx('call'); voiceCall(0, call); }
-  const data = {t: 'press', correct, rt, call};
+  const data = {t: 'press', rid: G.rid, correct, rt, call};
   if (S.host) hostOnPress(0, data); else S.hostConn.send(data);
   if (correct) {
     G.locked[S.me] = true;
@@ -4309,7 +4318,7 @@ function syncPress(choice, ts) {
   })();
 }
 async function syncFinish(d) {
-  const gen = S.gen, dead = () => gen !== S.gen;  // 演出の途中で対局をやめたら、続きを出さない
+  const gen = S.gen, rid = G.rid, dead = () => gen !== S.gen || rid !== G.rid;  // 演出の途中で対局をやめたら（次の局が始まったら）、続きを出さない
   G.active = false;
   G.syncRoundOver = true;
   G.scores = d.scores;
@@ -4410,7 +4419,7 @@ function syncAgain() {
 }
 
 // ---------- 起動 ----------
-const APP_VERSION = 'v1.0.34';
+const APP_VERSION = 'v1.0.35';
 function initLegend() {
   const items = [['K', false, '玉・王'], ['R', false, '飛車'], ['R', true, '龍'], ['B', false, '角'], ['B', true, '馬'], ['G', false, '金'], ['S', false, '銀'], ['N', false, '桂'], ['L', false, '香'], ['P', false, '歩'], ['P', true, 'と']];
   $('legend').innerHTML = items.map(([t, p, name]) => `<div>${pieceHTML({t, p, s: 0})}${name}</div>`).join('');
